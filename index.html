@@ -4,10 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>學校 iPad & 設備借用預約系統</title>
-  <!-- 引入 Tailwind CSS CDN -->
+  <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- 引入 FontAwesome 圖標 -->
+  <!-- FontAwesome 圖標庫 -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Supabase JS Client v2 -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
   </style>
@@ -37,7 +39,7 @@
   <!-- 主要內容區 -->
   <main class="max-w-7xl mx-auto px-4 py-6 flex-1 w-full space-y-6">
 
-    <!-- 1. 總庫存與時段看板 -->
+    <!-- 1. 各節設備剩餘量看板 -->
     <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
       <div class="flex flex-col md:flex-row md:items-center justify-between pb-4 mb-4 border-b border-slate-100 gap-2">
         <div>
@@ -72,10 +74,16 @@
 
         <form id="bookingForm" onsubmit="handleFormSubmit(event)" class="space-y-4">
           <div class="grid grid-cols-2 gap-3">
+            <!-- 教師姓名下拉選單 -->
             <div>
-              <label class="block text-xs font-semibold text-slate-600 mb-1">借用老師 <span class="text-rose-500">*</span></label>
-              <input type="text" id="teacherName" required placeholder="例如：陳大文" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+              <label class="block text-xs font-semibold text-slate-600 mb-1">
+                借用老師 <span class="text-rose-500">*</span>
+              </label>
+              <select id="teacherSelect" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white">
+                <option value="" disabled selected>載入教師名單中...</option>
+              </select>
             </div>
+            <!-- 課節時段 -->
             <div>
               <label class="block text-xs font-semibold text-slate-600 mb-1">借用課節 <span class="text-rose-500">*</span></label>
               <select id="lessonSelect" required onchange="updateRemainingPreview()" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none">
@@ -124,7 +132,7 @@
 
           <div>
             <label class="block text-xs font-semibold text-slate-600 mb-1">備註 / 特殊需求 (選填)</label>
-            <input type="text" id="remarks" placeholder="如需特定專用 App 或 Apple Pencil 等" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+            <input type="text" id="remarks" placeholder="如需 Apple Pencil 或特定充電箱等" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none">
           </div>
 
           <!-- 借用規則提示 -->
@@ -133,8 +141,8 @@
               <i class="fa-solid fa-triangle-exclamation text-amber-600"></i> 借用規則提醒：
             </p>
             <ul class="list-disc list-inside space-y-0.5 text-[11px] text-amber-700">
-              <li>借用採取先到先得原則，超出尚餘數量則無法成功借出。</li>
-              <li>使用完畢後請於當節結束或放學前準時歸還至 IT 處。</li>
+              <li>借用採取先到先得原則，超出尚餘數量則無法成功登記。</li>
+              <li>使用完畢後請於當節結束或放學前準時歸還至 IT 組。</li>
             </ul>
           </div>
 
@@ -180,96 +188,151 @@
     </div>
   </main>
 
-  <!-- 頁腳 -->
   <footer class="bg-white border-t border-slate-200 py-3 text-center text-xs text-slate-500">
     學校 IT 資訊科技組 · iPad & 行動設備借用管理系統
   </footer>
 
   <!-- JavaScript 邏輯 -->
   <script>
-    // 設備總量設定 (根據學校規格)
+    // ================= 1. Supabase 連線設定 =================
+    // ⚠️ 請替換為您的 Supabase 專案 URL 與 Anon Key
+    const SUPABASE_URL = 'https://gvysbmflwfidmifwepxz.supabase.co/rest/v1/';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2eXNibWZsd2ZpZG1pZndlcHh6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkyNzM4OTEsImV4cCI6MjEwNDg0OTg5MX0.7W8fBnbmZ6nOWpZohPvo_zCprZ7Ef0jvbG11iJrywrU';
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
     const TOTAL_STOCK = {
       iPad: 138,
       Mobile: 55
     };
 
     const LESSON_NAMES = {
-      1: '第 1 節',
-      2: '第 2 節',
-      3: '第 3 節',
-      4: '第 4 節',
-      5: '第 5 節',
-      6: '第 6 節',
-      7: '放學'
+      1: '第 1 節', 2: '第 2 節', 3: '第 3 節',
+      4: '第 4 節', 5: '第 5 節', 6: '第 6 節', 7: '放學'
     };
 
-    // 本地模擬資料庫 (初始化展示資料)
-    let mockBookings = [
-      { id: 1, date: getTodayString(), lesson: 1, teacher: '潘老師', device: 'iPad', quantity: 35, className: '1A', subject: '電腦', room: '電腦室(一)' },
-      { id: 2, date: getTodayString(), lesson: 1, teacher: '陳老師', device: 'iPad', quantity: 30, className: '2B', subject: '英文', room: '2B 房' },
-      { id: 3, date: getTodayString(), lesson: 2, teacher: '李老師', device: 'iPad', quantity: 35, className: '3C', subject: '數學', room: '3C 房' },
-      { id: 4, date: getTodayString(), lesson: 4, teacher: '張老師', device: 'Mobile', quantity: 20, className: '4D', subject: '地理', room: '地理室' }
-    ];
+    let currentBookings = [];
+    let teachersList = [];
 
-    // 初始化頁面
+    // ================= 2. 頁面初始化與即時監聽 =================
     document.addEventListener('DOMContentLoaded', () => {
       const dateInput = document.getElementById('selectDate');
       dateInput.value = getTodayString();
-      dateInput.addEventListener('change', renderAll);
-      renderAll();
+      dateInput.addEventListener('change', fetchAndRender);
+
+      // 載入教師名單與當日預約
+      loadTeachers();
+      fetchAndRender();
+      setupRealtimeSubscription();
     });
 
     function getTodayString() {
-      const today = new Date();
-      return today.toISOString().split('T')[0];
+      return new Date().toISOString().split('T')[0];
     }
 
-    // 計算特定日期與課節的尚餘數量
-    function getRemainingStock(date, lesson, device) {
-      const borrowed = mockBookings
-        .filter(b => b.date === date && b.lesson === parseInt(lesson) && b.device === device)
+    // 開啟 Realtime 監聽 (多部裝置操作會自動即時刷新)
+    function setupRealtimeSubscription() {
+      // 監聽預約變動
+      supabase
+        .channel('public:bookings')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
+          fetchAndRender();
+        })
+        .subscribe();
+
+      // 監聽教師狀態變動（例如解封或黑名單）
+      supabase
+        .channel('public:teachers')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'teachers' }, () => {
+          loadTeachers();
+        })
+        .subscribe();
+    }
+
+    // ================= 3. 載入教師名單 (含黑名單判斷) =================
+    async function loadTeachers() {
+      const select = document.getElementById('teacherSelect');
+      const { data, error } = await supabase
+        .from('teachers')
+        .select('name, is_suspended, suspended_until')
+        .order('name', { ascending: true });
+
+      if (error) {
+        console.error('載入教師名單失敗:', error);
+        select.innerHTML = '<option value="" disabled selected>載入失敗，請檢查資料庫</option>';
+        return;
+      }
+
+      teachersList = data || [];
+      select.innerHTML = '<option value="" disabled selected>請選擇老師姓名...</option>';
+
+      teachersList.forEach(teacher => {
+        const option = document.createElement('option');
+        option.value = teacher.name;
+
+        if (teacher.is_suspended) {
+          const until = teacher.suspended_until ? `至 ${teacher.suspended_until}` : '';
+          option.textContent = `⛔ ${teacher.name} (暫停借用 ${until})`.trim();
+          option.disabled = true;
+          option.classList.add('text-rose-500');
+        } else {
+          option.textContent = teacher.name;
+        }
+
+        select.appendChild(option);
+      });
+    }
+
+    // ================= 4. 從 Supabase 讀取當日資料 =================
+    async function fetchAndRender() {
+      const selectedDate = document.getElementById('selectDate').value;
+      document.getElementById('displaySelectedDate').textContent = selectedDate;
+
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('*')
+        .eq('date', selectedDate);
+
+      if (error) {
+        console.error('讀取失敗:', error);
+        return;
+      }
+
+      currentBookings = data || [];
+      renderDashboard();
+      renderTable();
+      updateRemainingPreview();
+    }
+
+    function getRemainingStock(lesson, device) {
+      const borrowed = currentBookings
+        .filter(b => b.lesson === parseInt(lesson) && b.device_type === device)
         .reduce((sum, b) => sum + b.quantity, 0);
       return Math.max(0, TOTAL_STOCK[device] - borrowed);
     }
 
-    // 更新表單上的尚餘提示
     function updateRemainingPreview() {
-      const date = document.getElementById('selectDate').value;
       const lesson = document.getElementById('lessonSelect').value;
       const device = document.getElementById('deviceType').value;
-      const remaining = getRemainingStock(date, lesson, device);
+      const remaining = getRemainingStock(lesson, device);
 
-      const stockBadge = document.getElementById('stockBadge');
-      stockBadge.textContent = `(尚餘: ${remaining} 部)`;
-      
-      const qtyInput = document.getElementById('quantity');
-      qtyInput.max = remaining;
+      document.getElementById('stockBadge').textContent = `(尚餘: ${remaining} 部)`;
+      document.getElementById('quantity').max = remaining;
     }
 
-    // 渲染整個介面 (看板與表格)
-    function renderAll() {
-      const selectedDate = document.getElementById('selectDate').value;
-      document.getElementById('displaySelectedDate').textContent = selectedDate;
-
-      renderDashboard(selectedDate);
-      renderTable(selectedDate);
-      updateRemainingPreview();
-    }
-
-    // 渲染課節看板卡片
-    function renderDashboard(date) {
+    // ================= 5. 畫面渲染 (看板與清單) =================
+    function renderDashboard() {
       const grid = document.getElementById('lessonsGrid');
       grid.innerHTML = '';
 
       for (let l = 1; l <= 7; l++) {
-        const remIpad = getRemainingStock(date, l, 'iPad');
-        const remMobile = getRemainingStock(date, l, 'Mobile');
+        const remIpad = getRemainingStock(l, 'iPad');
+        const remMobile = getRemainingStock(l, 'Mobile');
 
         const ipadColor = remIpad > 30 ? 'text-emerald-600 bg-emerald-50 border-emerald-200' : (remIpad > 0 ? 'text-amber-600 bg-amber-50 border-amber-200' : 'text-rose-600 bg-rose-50 border-rose-200');
         const mobileColor = remMobile > 15 ? 'text-emerald-600 bg-emerald-50 border-emerald-200' : (remMobile > 0 ? 'text-amber-600 bg-amber-50 border-amber-200' : 'text-rose-600 bg-rose-50 border-rose-200');
 
         const card = document.createElement('div');
-        card.className = "bg-slate-50 border border-slate-200 rounded-lg p-2.5 flex flex-col justify-between shadow-xs hover:border-indigo-300 transition";
+        card.className = "bg-slate-50 border border-slate-200 rounded-lg p-2.5 flex flex-col justify-between shadow-xs";
         card.innerHTML = `
           <div class="text-xs font-bold text-slate-700 mb-1.5 pb-1 border-b border-slate-200 flex justify-between items-center">
             <span>${LESSON_NAMES[l]}</span>
@@ -289,23 +352,20 @@
       }
     }
 
-    // 渲染借用清單表格
-    function renderTable(date) {
+    function renderTable() {
       const tbody = document.getElementById('bookingsTableBody');
       const emptyMsg = document.getElementById('emptyMessage');
       const countBadge = document.getElementById('recordCount');
 
-      const currentBookings = mockBookings.filter(b => b.date === date);
       countBadge.textContent = `共 ${currentBookings.length} 筆記錄`;
-
       tbody.innerHTML = '';
+
       if (currentBookings.length === 0) {
         emptyMsg.classList.remove('hidden');
         return;
       }
       emptyMsg.classList.add('hidden');
 
-      // 按課節順序排序
       currentBookings.sort((a, b) => a.lesson - b.lesson);
 
       currentBookings.forEach(item => {
@@ -313,16 +373,16 @@
         tr.className = "hover:bg-slate-50/80 transition";
         tr.innerHTML = `
           <td class="py-2.5 px-3 font-semibold text-slate-800">${LESSON_NAMES[item.lesson]}</td>
-          <td class="py-2.5 px-3 font-medium text-indigo-700">${item.teacher}</td>
+          <td class="py-2.5 px-3 font-medium text-indigo-700">${item.teacher_name}</td>
           <td class="py-2.5 px-3">
-            <span class="inline-flex items-center gap-1 font-bold ${item.device === 'iPad' ? 'text-blue-600' : 'text-purple-600'}">
-              ${item.device} × ${item.quantity}
+            <span class="inline-flex items-center gap-1 font-bold ${item.device_type === 'iPad' ? 'text-blue-600' : 'text-purple-600'}">
+              ${item.device_type} × ${item.quantity}
             </span>
           </td>
-          <td class="py-2.5 px-3">${item.className} (${item.subject})</td>
+          <td class="py-2.5 px-3">${item.class} (${item.subject})</td>
           <td class="py-2.5 px-3">${item.room}</td>
           <td class="py-2.5 px-3 text-center">
-            <button onclick="deleteBooking(${item.id})" class="text-rose-500 hover:text-rose-700 p-1 transition" title="取消登記">
+            <button onclick="deleteBooking('${item.id}')" class="text-rose-500 hover:text-rose-700 p-1 transition" title="取消登記">
               <i class="fa-solid fa-trash-can"></i>
             </button>
           </td>
@@ -331,53 +391,84 @@
       });
     }
 
-    // 處理表單提交
-    function handleFormSubmit(event) {
+    // ================= 6. 提交借用表單 =================
+    async function handleFormSubmit(event) {
       event.preventDefault();
+
+      const submitBtn = document.getElementById('submitBtn');
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 正在儲存...';
 
       const date = document.getElementById('selectDate').value;
       const lesson = parseInt(document.getElementById('lessonSelect').value);
-      const teacher = document.getElementById('teacherName').value.trim();
-      const device = document.getElementById('deviceType').value;
+      const teacher_name = document.getElementById('teacherSelect').value;
+      const device_type = document.getElementById('deviceType').value;
       const quantity = parseInt(document.getElementById('quantity').value);
       const className = document.getElementById('className').value.trim();
       const subject = document.getElementById('subject').value.trim();
       const room = document.getElementById('room').value.trim();
+      const remarks = document.getElementById('remarks').value.trim();
 
-      const remaining = getRemainingStock(date, lesson, device);
-
-      // 防呆檢查：剩餘數量是否足夠
-      if (quantity > remaining) {
-        alert(`❌ 借用失敗！該節 ${device} 尚餘數量僅剩 ${remaining} 部，無法借出 ${quantity} 部。`);
+      if (!teacher_name) {
+        alert('請先選擇借用老師！');
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
         return;
       }
 
-      // 新增借用記錄
-      const newBooking = {
-        id: Date.now(),
+      // 檢查黑名單
+      const teacherRecord = teachersList.find(t => t.name === teacher_name);
+      if (teacherRecord && teacherRecord.is_suspended) {
+        alert(`❌ 借用失敗：${teacher_name} 老師目前處於停止借用期！`);
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
+        return;
+      }
+
+      // 檢查剩餘數量
+      const remaining = getRemainingStock(lesson, device_type);
+      if (quantity > remaining) {
+        alert(`❌ 借用失敗！該節 ${device_type} 尚餘數量僅剩 ${remaining} 部。`);
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
+        return;
+      }
+
+      const { error } = await supabase.from('bookings').insert([{
         date,
         lesson,
-        teacher,
-        device,
+        teacher_name,
+        device_type,
         quantity,
-        className,
+        class: className,
         subject,
-        room
-      };
+        room,
+        remarks,
+        status: 'pending'
+      }]);
 
-      mockBookings.push(newBooking);
-      alert(`✅ 借用成功！已為 ${teacher} 登記 ${LESSON_NAMES[lesson]} 的 ${device} (${quantity} 部)。`);
+      if (error) {
+        console.error('寫入錯誤:', error);
+        alert('登記失敗：' + error.message);
+      } else {
+        alert(`✅ 借用成功！已為 ${teacher_name} 登記 ${LESSON_NAMES[lesson]} 的 ${device_type} (${quantity} 部)。`);
+        document.getElementById('bookingForm').reset();
+        fetchAndRender();
+      }
 
-      // 重設表單與重新渲染
-      document.getElementById('bookingForm').reset();
-      renderAll();
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
     }
 
-    // 刪除 / 取消借用
-    function deleteBooking(id) {
-      if (confirm('確定要取消此借用記錄嗎？釋出的數量將會即時回補。')) {
-        mockBookings = mockBookings.filter(b => b.id !== id);
-        renderAll();
+    // ================= 7. 取消 / 刪除借用 =================
+    async function deleteBooking(id) {
+      if (!confirm('確定要取消此借用記錄嗎？釋出的數量將即時回補。')) return;
+
+      const { error } = await supabase.from('bookings').delete().eq('id', id);
+      if (error) {
+        alert('刪除失敗：' + error.message);
+      } else {
+        fetchAndRender();
       }
     }
   </script>

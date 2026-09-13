@@ -397,6 +397,7 @@
     }
 
     // ================= 3. 動態讀取 resources 資料表 =================
+    // ================= 3. 動態讀取 resources 資料表 =================
     async function loadResources() {
       if (isConnected && _supabase) {
         const { data, error } = await _supabase
@@ -410,6 +411,20 @@
           });
         }
       }
+
+      // 更新頂部全校總量基準顯示
+      document.getElementById('totalStockSubtitle').textContent = 
+        `全校總量基準：iPad ${totalStock.iPad} 部 ｜ Mobile ${totalStock.Mobile} 部`;
+
+      // 保持下拉選單簡潔（不加「上限」字眼，避免與每節尚餘混淆）
+      const deviceSelect = document.getElementById('deviceType');
+      const selectedVal = deviceSelect.value || 'iPad';
+      deviceSelect.innerHTML = `
+        <option value="iPad">iPad</option>
+        <option value="Mobile">Mobile</option>
+      `;
+      deviceSelect.value = selectedVal;
+    }
 
       document.getElementById('totalStockSubtitle').textContent = 
         `全校總量基準：iPad ${totalStock.iPad} 部 ｜ Mobile ${totalStock.Mobile} 部`;

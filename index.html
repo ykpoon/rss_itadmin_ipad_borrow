@@ -16,9 +16,9 @@
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
 
-  <!-- 頂部導航列 -->
+  <!-- 頂部導航列 (含 Google 登入狀態) -->
   <header class="bg-indigo-700 text-white shadow-md sticky top-0 z-50">
-    <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-3">
       <div class="flex items-center space-x-3">
         <i class="fa-solid fa-tablet-screen-button text-2xl text-indigo-200"></i>
         <div>
@@ -26,11 +26,29 @@
           <p class="text-xs text-indigo-200">即時庫存查詢與課節登記</p>
         </div>
       </div>
-      <div class="flex items-center space-x-4">
+      
+      <!-- 右側：日期選擇與 Google 登入按鈕 -->
+      <div class="flex items-center space-x-3">
         <div class="flex items-center space-x-2 bg-indigo-800/60 px-3 py-1.5 rounded-lg border border-indigo-500/30">
           <i class="fa-regular fa-calendar text-indigo-300"></i>
           <label for="selectDate" class="text-xs font-medium text-indigo-200">查詢日期：</label>
           <input type="date" id="selectDate" class="bg-transparent text-white text-sm font-semibold focus:outline-none cursor-pointer">
+        </div>
+
+        <!-- 登入控制區 -->
+        <div id="authContainer">
+          <!-- 未登入狀態 -->
+          <button id="loginBtn" onclick="loginWithGoogle()" class="bg-white hover:bg-indigo-50 text-indigo-700 font-semibold text-xs px-3.5 py-2 rounded-lg shadow-sm flex items-center gap-2 transition">
+            <i class="fa-brands fa-google text-red-500"></i> Google 登入
+          </button>
+          
+          <!-- 已登入狀態 -->
+          <div id="userInfo" class="hidden flex items-center space-x-2 bg-indigo-800/80 px-3 py-1.5 rounded-lg border border-indigo-500/30">
+            <i class="fa-solid fa-circle-user text-indigo-300"></i>
+            <span id="userEmailDisplay" class="text-xs text-indigo-100 font-medium"></span>
+            <span id="adminBadge" class="hidden text-[10px] bg-amber-400 text-amber-900 font-bold px-1.5 py-0.5 rounded">管理員</span>
+            <button onclick="logout()" class="text-xs bg-rose-600 hover:bg-rose-700 text-white px-2 py-1 rounded ml-1 transition">登出</button>
+          </div>
         </div>
       </div>
     </div>
@@ -72,19 +90,25 @@
           提交借用申請
         </h2>
 
+        <!-- 未登入提示覆蓋層 -->
+        <div id="loginRequiredAlert" class="mb-4 p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-xs text-indigo-800 flex items-center justify-between">
+          <span><i class="fa-solid fa-lock mr-1.5"></i> 請先使用學校 Google 帳號登入後登記借用。</span>
+          <button onclick="loginWithGoogle()" class="text-xs font-bold text-indigo-700 underline">立即登入</button>
+        </div>
+
         <form id="bookingForm" onsubmit="handleFormSubmit(event)" class="space-y-4">
           <div class="grid grid-cols-2 gap-3">
             <!-- 借用老師 -->
             <div>
               <label class="block text-xs font-semibold text-slate-600 mb-1">借用老師 <span class="text-rose-500">*</span></label>
               <select id="teacherSelect" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white">
-                <option value="" disabled selected>載入教師名單中...</option>
+                <option value="" disabled selected>請選擇老師姓名...</option>
               </select>
             </div>
             <!-- 借用課節 -->
             <div>
               <label class="block text-xs font-semibold text-slate-600 mb-1">借用課節 <span class="text-rose-500">*</span></label>
-              <select id="lessonSelect" required onchange="updateRemainingPreview()" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+              <select id="lessonSelect" required onchange="updateRemainingPreview()" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white">
                 <option value="1">第 1 節 (Lesson 1)</option>
                 <option value="2">第 2 節 (Lesson 2)</option>
                 <option value="3">第 3 節 (Lesson 3)</option>
@@ -100,7 +124,7 @@
             <!-- 設備種類 -->
             <div>
               <label class="block text-xs font-semibold text-slate-600 mb-1">設備種類 <span class="text-rose-500">*</span></label>
-              <select id="deviceType" required onchange="updateRemainingPreview()" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+              <select id="deviceType" required onchange="updateRemainingPreview()" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white">
                 <option value="iPad">iPad (上限 138)</option>
                 <option value="Mobile">Mobile (上限 55)</option>
               </select>
@@ -219,23 +243,27 @@
   <footer class="bg-white border-t border-slate-200 py-3 text-center text-xs text-slate-500">
     學校 IT 資訊科技組 · iPad & 行動設備借用管理系統
   </footer>
+
   <script>
-    // ================= 1. Supabase 連線設定 (已修復變數衝突) =================
+    // ================= 1. 設定與連線 =================
     const SUPABASE_URL = 'https://gvysbmflwfidmifwepxz.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2eXNibWZsd2ZpZG1pZndlcHh6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkyNzM4OTEsImV4cCI6MjEwNDg0OTg5MX0.7W8fBnbmZ6nOWpZohPvo_zCprZ7Ef0jvbG11iJrywrU';
+    
+    // 超級管理員電郵 (可刪除所有人記錄)
+    const ADMIN_EMAIL = 'ykpoon@hkrsstpss.edu.hk';
 
     let _supabase = null;
     let isConnected = false;
+    let currentUser = null; // 存放當前登入的使用者資訊
 
-    // 建立連線
     try {
       if (window.supabase && SUPABASE_URL && SUPABASE_ANON_KEY) {
         _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         isConnected = true;
-        console.log("✅ Supabase 連線成功！");
+        console.log("✅ Supabase 資料庫連線成功！");
       }
     } catch (e) {
-      console.warn("⚠️ 連線失敗，切換至備用模式", e);
+      console.warn("⚠️ 連線失敗", e);
     }
 
     const TOTAL_STOCK = { iPad: 138, Mobile: 55 };
@@ -244,11 +272,14 @@
     let currentBookings = [];
     let teachersList = [];
 
-    // ================= 2. 頁面初始化 =================
-    document.addEventListener('DOMContentLoaded', () => {
+    // ================= 2. 頁面初始化與登入監聽 =================
+    document.addEventListener('DOMContentLoaded', async () => {
       const dateInput = document.getElementById('selectDate');
       dateInput.value = getTodayString();
       dateInput.addEventListener('change', fetchAndRender);
+
+      // 檢查 Google 登入狀態
+      await checkAuth();
 
       loadTeachers();
       fetchAndRender();
@@ -261,6 +292,68 @@
       const mm = String(today.getMonth() + 1).padStart(2, '0');
       const dd = String(today.getDate()).padStart(2, '0');
       return `${yyyy}-${mm}-${dd}`;
+    }
+
+    // 檢查登入身分
+    async function checkAuth() {
+      if (!isConnected || !_supabase) return;
+
+      const { data: { session } } = await _supabase.auth.getSession();
+      updateAuthUI(session?.user || null);
+
+      _supabase.auth.onAuthStateChange((_event, session) => {
+        updateAuthUI(session?.user || null);
+        renderTable(); // 登入狀態改變時重新渲染表格權限
+      });
+    }
+
+    // 更新頂部登入 UI 與表單狀態
+    function updateAuthUI(user) {
+      currentUser = user;
+      const loginBtn = document.getElementById('loginBtn');
+      const userInfo = document.getElementById('userInfo');
+      const emailDisplay = document.getElementById('userEmailDisplay');
+      const adminBadge = document.getElementById('adminBadge');
+      const loginAlert = document.getElementById('loginRequiredAlert');
+
+      if (user) {
+        loginBtn.classList.add('hidden');
+        userInfo.classList.remove('hidden');
+        emailDisplay.textContent = user.email;
+        loginAlert.classList.add('hidden');
+
+        if (user.email === ADMIN_EMAIL) {
+          adminBadge.classList.remove('hidden');
+        } else {
+          adminBadge.classList.add('hidden');
+        }
+      } else {
+        loginBtn.classList.remove('hidden');
+        userInfo.classList.add('hidden');
+        loginAlert.classList.remove('hidden');
+      }
+    }
+
+    // 觸發 Google 登入
+    async function loginWithGoogle() {
+      if (!isConnected || !_supabase) return;
+      const { error } = await _supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          queryParams: {
+            prompt: 'select_account'
+          },
+          redirectTo: window.location.href
+        }
+      });
+      if (error) alert('登入失敗：' + error.message);
+    }
+
+    // 登出
+    async function logout() {
+      if (!isConnected || !_supabase) return;
+      await _supabase.auth.signOut();
+      location.reload();
     }
 
     // 開啟 Realtime 即時廣播
@@ -282,43 +375,39 @@
         .subscribe();
     }
 
-    // ================= 3. 載入教師名單 =================
-   // ================= 3. 載入教師名單 (依繁體中文/英文正確排序) =================
-async function loadTeachers() {
-  const select = document.getElementById('teacherSelect');
-  
-  if (isConnected && _supabase) {
-    const { data, error } = await _supabase
-      .from('teachers')
-      .select('name, is_suspended, suspended_until');
+    // ================= 3. 載入教師名單 (繁體中文/筆畫自然排序) =================
+    async function loadTeachers() {
+      const select = document.getElementById('teacherSelect');
+      
+      if (isConnected && _supabase) {
+        const { data, error } = await _supabase
+          .from('teachers')
+          .select('name, is_suspended, suspended_until');
 
-    if (!error && data && data.length > 0) {
-      // 使用香港繁體中文語系 (zh-HK) 進行自然排序
-      teachersList = data.sort((a, b) => a.name.localeCompare(b.name, 'zh-HK'));
-    } else {
-      console.warn("讀取教師名單失敗:", error);
+        if (!error && data && data.length > 0) {
+          // 依香港繁體中文筆畫/拼音自然排序
+          teachersList = data.sort((a, b) => a.name.localeCompare(b.name, 'zh-HK'));
+        }
+      }
+
+      select.innerHTML = '<option value="" disabled selected>請選擇老師姓名...</option>';
+      teachersList.forEach(teacher => {
+        const option = document.createElement('option');
+        option.value = teacher.name;
+
+        if (teacher.is_suspended) {
+          const until = teacher.suspended_until ? `至 ${teacher.suspended_until}` : '';
+          option.textContent = `⛔ ${teacher.name} (暫停借用 ${until})`.trim();
+          option.disabled = true;
+          option.classList.add('text-rose-500');
+        } else {
+          option.textContent = teacher.name;
+        }
+        select.appendChild(option);
+      });
     }
-  }
 
-  select.innerHTML = '<option value="" disabled selected>請選擇老師姓名...</option>';
-  teachersList.forEach(teacher => {
-    const option = document.createElement('option');
-    option.value = teacher.name;
-
-    if (teacher.is_suspended) {
-      const until = teacher.suspended_until ? `至 ${teacher.suspended_until}` : '';
-      option.textContent = `⛔ ${teacher.name} (暫停借用 ${until})`.trim();
-      option.disabled = true;
-      option.classList.add('text-rose-500');
-    } else {
-      option.textContent = teacher.name;
-    }
-    select.appendChild(option);
-  });
-}
-
-
-    // ================= 4. 讀取與計算庫存 =================
+    // ================= 4. 讀取預約與計算庫存 =================
     async function fetchAndRender() {
       const selectedDate = document.getElementById('selectDate').value;
       document.getElementById('displaySelectedDate').textContent = selectedDate;
@@ -355,7 +444,7 @@ async function loadTeachers() {
       document.getElementById('quantity').max = remaining;
     }
 
-    // ================= 5. 介面渲染 =================
+    // ================= 5. 渲染看板與清單 (含權限控制) =================
     function renderDashboard() {
       const grid = document.getElementById('lessonsGrid');
       grid.innerHTML = '';
@@ -403,7 +492,16 @@ async function loadTeachers() {
       emptyMsg.classList.add('hidden');
 
       currentBookings.sort((a, b) => a.lesson - b.lesson);
+      
       currentBookings.forEach(item => {
+        // 核心權限判斷：
+        // 1. 如果登入者是管理員 (ykpoon@hkrsstpss.edu.hk)，可刪除所有記錄
+        // 2. 如果登入者是該筆借用的本人 (currentUser.email === item.user_email)，可刪除自己的記錄
+        const canDelete = currentUser && (
+          currentUser.email === ADMIN_EMAIL || 
+          (item.user_email && currentUser.email === item.user_email)
+        );
+
         const tr = document.createElement('tr');
         tr.className = "hover:bg-slate-50/80 transition";
         tr.innerHTML = `
@@ -417,18 +515,31 @@ async function loadTeachers() {
           <td class="py-2.5 px-3">${item.class} (${item.subject})</td>
           <td class="py-2.5 px-3">${item.room}</td>
           <td class="py-2.5 px-3 text-center">
-            <button onclick="deleteBooking('${item.id}')" class="text-rose-500 hover:text-rose-700 p-1 transition" title="取消登記">
-              <i class="fa-solid fa-trash-can"></i>
-            </button>
+            ${canDelete ? `
+              <button onclick="deleteBooking('${item.id}', '${item.teacher_name}')" class="text-rose-500 hover:text-rose-700 p-1 transition" title="取消登記">
+                <i class="fa-solid fa-trash-can"></i>
+              </button>
+            ` : `
+              <span class="text-slate-300 text-[11px] cursor-not-allowed" title="非本人登記，無權取消">
+                <i class="fa-solid fa-lock"></i>
+              </span>
+            `}
           </td>
         `;
         tbody.appendChild(tr);
       });
     }
 
-    // ================= 6. 提交借用 =================
+    // ================= 6. 提交借用表單 =================
     async function handleFormSubmit(event) {
       event.preventDefault();
+
+      // 強制要求登入
+      if (!currentUser) {
+        alert('請先點擊右上角使用學校 Google 帳號登入後再進行借用！');
+        loginWithGoogle();
+        return;
+      }
 
       const submitBtn = document.getElementById('submitBtn');
       submitBtn.disabled = true;
@@ -470,7 +581,17 @@ async function loadTeachers() {
 
       if (isConnected && _supabase) {
         const { error } = await _supabase.from('bookings').insert([{
-          date, lesson, teacher_name, device_type, quantity, class: className, subject, room, remarks, status: 'pending'
+          date,
+          lesson,
+          teacher_name,
+          device_type,
+          quantity,
+          class: className,
+          subject,
+          room,
+          remarks,
+          status: 'pending',
+          user_email: currentUser.email // 寫入登入者的電郵
         }]);
 
         if (error) {
@@ -486,9 +607,14 @@ async function loadTeachers() {
       submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
     }
 
-    // ================= 7. 取消借用 =================
-    async function deleteBooking(id) {
-      if (!confirm('確定要取消此借用記錄嗎？釋出的數量將即時回補。')) return;
+    // ================= 7. 取消借用 (含權限二次防護) =================
+    async function deleteBooking(id, teacherName) {
+      if (!currentUser) {
+        alert('請先登入！');
+        return;
+      }
+
+      if (!confirm(`確定要取消 ${teacherName} 的此筆借用記錄嗎？釋出的數量將即時回補。`)) return;
 
       if (isConnected && _supabase) {
         const { error } = await _supabase.from('bookings').delete().eq('id', id);
@@ -500,8 +626,5 @@ async function loadTeachers() {
       }
     }
   </script>
-
-  
-  
 </body>
 </html>

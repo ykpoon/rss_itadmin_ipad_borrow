@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>學校 iPad & 設備借用預約系統</title>
+  <!-- 引入 Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- 引入 FontAwesome 圖標 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+  <!-- 頂部導航列 -->
+  <header class="bg-indigo-700 text-white shadow-md sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+      <div class="flex items-center space-x-3">
+        <i class="fa-solid fa-tablet-screen-button text-2xl text-indigo-200"></i>
+        <div>
+          <h1 class="text-xl font-bold tracking-tight">iPad / 設備借用管理系統</h1>
+          <p class="text-xs text-indigo-200">即時庫存查詢與課節登記</p>
+        </div>
+      </div>
+      <div class="flex items-center space-x-4">
+        <div class="flex items-center space-x-2 bg-indigo-800/60 px-3 py-1.5 rounded-lg border border-indigo-500/30">
+          <i class="fa-regular fa-calendar text-indigo-300"></i>
+          <label for="selectDate" class="text-xs font-medium text-indigo-200">查詢日期：</label>
+          <input type="date" id="selectDate" class="bg-transparent text-white text-sm font-semibold focus:outline-none cursor-pointer">
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- 主要內容區 -->
+  <main class="max-w-7xl mx-auto px-4 py-6 flex-1 w-full space-y-6">
+
+    <!-- 1. 總庫存與時段看板 -->
+    <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+      <div class="flex flex-col md:flex-row md:items-center justify-between pb-4 mb-4 border-b border-slate-100 gap-2">
+        <div>
+          <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+            <i class="fa-solid fa-chart-pie text-indigo-600"></i>
+            各節設備剩餘量看板 (<span id="displaySelectedDate" class="text-indigo-600"></span>)
+          </h2>
+          <p class="text-xs text-slate-500 mt-0.5">全校總量基準：iPad 138 部｜Mobile 55 部</p>
+        </div>
+        <div class="flex items-center gap-4 text-xs">
+          <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-emerald-500"></span> 供應充足 (>30)</span>
+          <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-amber-500"></span> 緊張 (1-30)</span>
+          <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-rose-500"></span> 額滿 (0)</span>
+        </div>
+      </div>
+
+      <!-- 課節卡片網格 -->
+      <div id="lessonsGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
+        <!-- 課節卡片由 JS 動態生成 -->
+      </div>
+    </section>
+
+    <!-- 2. 下方兩欄佈局：借用表單 + 當日預約清單 -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      
+      <!-- 左側：借用表單 (佔 5 欄) -->
+      <section class="lg:col-span-5 bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+        <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4 pb-3 border-b border-slate-100">
+          <i class="fa-solid fa-pen-to-square text-indigo-600"></i>
+          提交借用申請
+        </h2>
+
+        <form id="bookingForm" onsubmit="handleFormSubmit(event)" class="space-y-4">
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">借用老師 <span class="text-rose-500">*</span></label>
+              <input type="text" id="teacherName" required placeholder="例如：陳大文" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">借用課節 <span class="text-rose-500">*</span></label>
+              <select id="lessonSelect" required onchange="updateRemainingPreview()" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                <option value="1">第 1 節 (Lesson 1)</option>
+                <option value="2">第 2 節 (Lesson 2)</option>
+                <option value="3">第 3 節 (Lesson 3)</option>
+                <option value="4">第 4 節 (Lesson 4)</option>
+                <option value="5">第 5 節 (Lesson 5)</option>
+                <option value="6">第 6 節 (Lesson 6)</option>
+                <option value="7">放學 (After School)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">設備種類 <span class="text-rose-500">*</span></label>
+              <select id="deviceType" required onchange="updateRemainingPreview()" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                <option value="iPad">iPad (上限 138)</option>
+                <option value="Mobile">Mobile (上限 55)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">
+                借用數量 <span class="text-rose-500">*</span>
+                <span id="stockBadge" class="text-[11px] font-normal text-indigo-600 ml-1">(尚餘: --)</span>
+              </label>
+              <input type="number" id="quantity" required min="1" max="138" placeholder="輸入數量" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-3 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">班別 <span class="text-rose-500">*</span></label>
+              <input type="text" id="className" required placeholder="如 1A, 3B" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">科目 <span class="text-rose-500">*</span></label>
+              <input type="text" id="subject" required placeholder="如 英文, 電腦" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">地點 / 房號 <span class="text-rose-500">*</span></label>
+              <input type="text" id="room" required placeholder="如 5A 房, 電腦室" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">備註 / 特殊需求 (選填)</label>
+            <input type="text" id="remarks" placeholder="如需特定專用 App 或 Apple Pencil 等" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+          </div>
+
+          <!-- 借用規則提示 -->
+          <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 space-y-1">
+            <p class="font-bold flex items-center gap-1">
+              <i class="fa-solid fa-triangle-exclamation text-amber-600"></i> 借用規則提醒：
+            </p>
+            <ul class="list-disc list-inside space-y-0.5 text-[11px] text-amber-700">
+              <li>借用採取先到先得原則，超出尚餘數量則無法成功借出。</li>
+              <li>使用完畢後請於當節結束或放學前準時歸還至 IT 處。</li>
+            </ul>
+          </div>
+
+          <button type="submit" id="submitBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-4 rounded-lg shadow transition flex items-center justify-center gap-2">
+            <i class="fa-solid fa-paper-plane"></i> 確認提交借用登記
+          </button>
+        </form>
+      </section>
+
+      <!-- 右側：當日借用清單 (佔 7 欄) -->
+      <section class="lg:col-span-7 bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex flex-col">
+        <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+          <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+            <i class="fa-solid fa-list-check text-indigo-600"></i>
+            當日借用詳情清單
+          </h2>
+          <span id="recordCount" class="text-xs bg-slate-100 text-slate-600 font-medium px-2.5 py-1 rounded-full">共 0 筆記錄</span>
+        </div>
+
+        <div class="overflow-x-auto flex-1">
+          <table class="w-full text-left text-xs text-slate-600">
+            <thead class="bg-slate-50 text-slate-700 uppercase font-semibold border-b border-slate-200">
+              <tr>
+                <th class="py-2.5 px-3">課節</th>
+                <th class="py-2.5 px-3">老師</th>
+                <th class="py-2.5 px-3">設備 / 數量</th>
+                <th class="py-2.5 px-3">班別 / 科目</th>
+                <th class="py-2.5 px-3">地點</th>
+                <th class="py-2.5 px-3 text-center">操作</th>
+              </tr>
+            </thead>
+            <tbody id="bookingsTableBody" class="divide-y divide-slate-100 font-normal">
+              <!-- 表格內容由 JS 動態生成 -->
+            </tbody>
+          </table>
+          <div id="emptyMessage" class="hidden text-center py-12 text-slate-400">
+            <i class="fa-solid fa-inbox text-3xl mb-2"></i>
+            <p class="text-sm">本日該時段暫無任何借用記錄</p>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- 頁腳 -->
+  <footer class="bg-white border-t border-slate-200 py-3 text-center text-xs text-slate-500">
+    學校 IT 資訊科技組 · iPad & 行動設備借用管理系統
+  </footer>
+
+  <!-- JavaScript 邏輯 -->
+  <script>
+    // 設備總量設定 (根據學校規格)
+    const TOTAL_STOCK = {
+      iPad: 138,
+      Mobile: 55
+    };
+
+    const LESSON_NAMES = {
+      1: '第 1 節',
+      2: '第 2 節',
+      3: '第 3 節',
+      4: '第 4 節',
+      5: '第 5 節',
+      6: '第 6 節',
+      7: '放學'
+    };
+
+    // 本地模擬資料庫 (初始化展示資料)
+    let mockBookings = [
+      { id: 1, date: getTodayString(), lesson: 1, teacher: '潘老師', device: 'iPad', quantity: 35, className: '1A', subject: '電腦', room: '電腦室(一)' },
+      { id: 2, date: getTodayString(), lesson: 1, teacher: '陳老師', device: 'iPad', quantity: 30, className: '2B', subject: '英文', room: '2B 房' },
+      { id: 3, date: getTodayString(), lesson: 2, teacher: '李老師', device: 'iPad', quantity: 35, className: '3C', subject: '數學', room: '3C 房' },
+      { id: 4, date: getTodayString(), lesson: 4, teacher: '張老師', device: 'Mobile', quantity: 20, className: '4D', subject: '地理', room: '地理室' }
+    ];
+
+    // 初始化頁面
+    document.addEventListener('DOMContentLoaded', () => {
+      const dateInput = document.getElementById('selectDate');
+      dateInput.value = getTodayString();
+      dateInput.addEventListener('change', renderAll);
+      renderAll();
+    });
+
+    function getTodayString() {
+      const today = new Date();
+      return today.toISOString().split('T')[0];
+    }
+
+    // 計算特定日期與課節的尚餘數量
+    function getRemainingStock(date, lesson, device) {
+      const borrowed = mockBookings
+        .filter(b => b.date === date && b.lesson === parseInt(lesson) && b.device === device)
+        .reduce((sum, b) => sum + b.quantity, 0);
+      return Math.max(0, TOTAL_STOCK[device] - borrowed);
+    }
+
+    // 更新表單上的尚餘提示
+    function updateRemainingPreview() {
+      const date = document.getElementById('selectDate').value;
+      const lesson = document.getElementById('lessonSelect').value;
+      const device = document.getElementById('deviceType').value;
+      const remaining = getRemainingStock(date, lesson, device);
+
+      const stockBadge = document.getElementById('stockBadge');
+      stockBadge.textContent = `(尚餘: ${remaining} 部)`;
+      
+      const qtyInput = document.getElementById('quantity');
+      qtyInput.max = remaining;
+    }
+
+    // 渲染整個介面 (看板與表格)
+    function renderAll() {
+      const selectedDate = document.getElementById('selectDate').value;
+      document.getElementById('displaySelectedDate').textContent = selectedDate;
+
+      renderDashboard(selectedDate);
+      renderTable(selectedDate);
+      updateRemainingPreview();
+    }
+
+    // 渲染課節看板卡片
+    function renderDashboard(date) {
+      const grid = document.getElementById('lessonsGrid');
+      grid.innerHTML = '';
+
+      for (let l = 1; l <= 7; l++) {
+        const remIpad = getRemainingStock(date, l, 'iPad');
+        const remMobile = getRemainingStock(date, l, 'Mobile');
+
+        const ipadColor = remIpad > 30 ? 'text-emerald-600 bg-emerald-50 border-emerald-200' : (remIpad > 0 ? 'text-amber-600 bg-amber-50 border-amber-200' : 'text-rose-600 bg-rose-50 border-rose-200');
+        const mobileColor = remMobile > 15 ? 'text-emerald-600 bg-emerald-50 border-emerald-200' : (remMobile > 0 ? 'text-amber-600 bg-amber-50 border-amber-200' : 'text-rose-600 bg-rose-50 border-rose-200');
+
+        const card = document.createElement('div');
+        card.className = "bg-slate-50 border border-slate-200 rounded-lg p-2.5 flex flex-col justify-between shadow-xs hover:border-indigo-300 transition";
+        card.innerHTML = `
+          <div class="text-xs font-bold text-slate-700 mb-1.5 pb-1 border-b border-slate-200 flex justify-between items-center">
+            <span>${LESSON_NAMES[l]}</span>
+          </div>
+          <div class="space-y-1 text-[11px]">
+            <div class="flex items-center justify-between px-1.5 py-0.5 rounded border ${ipadColor}">
+              <span class="font-medium">iPad</span>
+              <span class="font-bold">${remIpad} / ${TOTAL_STOCK.iPad}</span>
+            </div>
+            <div class="flex items-center justify-between px-1.5 py-0.5 rounded border ${mobileColor}">
+              <span class="font-medium">Mobile</span>
+              <span class="font-bold">${remMobile} / ${TOTAL_STOCK.Mobile}</span>
+            </div>
+          </div>
+        `;
+        grid.appendChild(card);
+      }
+    }
+
+    // 渲染借用清單表格
+    function renderTable(date) {
+      const tbody = document.getElementById('bookingsTableBody');
+      const emptyMsg = document.getElementById('emptyMessage');
+      const countBadge = document.getElementById('recordCount');
+
+      const currentBookings = mockBookings.filter(b => b.date === date);
+      countBadge.textContent = `共 ${currentBookings.length} 筆記錄`;
+
+      tbody.innerHTML = '';
+      if (currentBookings.length === 0) {
+        emptyMsg.classList.remove('hidden');
+        return;
+      }
+      emptyMsg.classList.add('hidden');
+
+      // 按課節順序排序
+      currentBookings.sort((a, b) => a.lesson - b.lesson);
+
+      currentBookings.forEach(item => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-50/80 transition";
+        tr.innerHTML = `
+          <td class="py-2.5 px-3 font-semibold text-slate-800">${LESSON_NAMES[item.lesson]}</td>
+          <td class="py-2.5 px-3 font-medium text-indigo-700">${item.teacher}</td>
+          <td class="py-2.5 px-3">
+            <span class="inline-flex items-center gap-1 font-bold ${item.device === 'iPad' ? 'text-blue-600' : 'text-purple-600'}">
+              ${item.device} × ${item.quantity}
+            </span>
+          </td>
+          <td class="py-2.5 px-3">${item.className} (${item.subject})</td>
+          <td class="py-2.5 px-3">${item.room}</td>
+          <td class="py-2.5 px-3 text-center">
+            <button onclick="deleteBooking(${item.id})" class="text-rose-500 hover:text-rose-700 p-1 transition" title="取消登記">
+              <i class="fa-solid fa-trash-can"></i>
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // 處理表單提交
+    function handleFormSubmit(event) {
+      event.preventDefault();
+
+      const date = document.getElementById('selectDate').value;
+      const lesson = parseInt(document.getElementById('lessonSelect').value);
+      const teacher = document.getElementById('teacherName').value.trim();
+      const device = document.getElementById('deviceType').value;
+      const quantity = parseInt(document.getElementById('quantity').value);
+      const className = document.getElementById('className').value.trim();
+      const subject = document.getElementById('subject').value.trim();
+      const room = document.getElementById('room').value.trim();
+
+      const remaining = getRemainingStock(date, lesson, device);
+
+      // 防呆檢查：剩餘數量是否足夠
+      if (quantity > remaining) {
+        alert(`❌ 借用失敗！該節 ${device} 尚餘數量僅剩 ${remaining} 部，無法借出 ${quantity} 部。`);
+        return;
+      }
+
+      // 新增借用記錄
+      const newBooking = {
+        id: Date.now(),
+        date,
+        lesson,
+        teacher,
+        device,
+        quantity,
+        className,
+        subject,
+        room
+      };
+
+      mockBookings.push(newBooking);
+      alert(`✅ 借用成功！已為 ${teacher} 登記 ${LESSON_NAMES[lesson]} 的 ${device} (${quantity} 部)。`);
+
+      // 重設表單與重新渲染
+      document.getElementById('bookingForm').reset();
+      renderAll();
+    }
+
+    // 刪除 / 取消借用
+    function deleteBooking(id) {
+      if (confirm('確定要取消此借用記錄嗎？釋出的數量將會即時回補。')) {
+        mockBookings = mockBookings.filter(b => b.id !== id);
+        renderAll();
+      }
+    }
+  </script>
+</body>
+</html>

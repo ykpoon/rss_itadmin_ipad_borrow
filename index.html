@@ -283,38 +283,40 @@
     }
 
     // ================= 3. 載入教師名單 =================
-    async function loadTeachers() {
-      const select = document.getElementById('teacherSelect');
-      
-      if (isConnected && _supabase) {
-        const { data, error } = await _supabase
-          .from('teachers')
-          .select('name, is_suspended, suspended_until')
-          .order('name', { ascending: true });
+   // ================= 3. 載入教師名單 (依繁體中文/英文正確排序) =================
+async function loadTeachers() {
+  const select = document.getElementById('teacherSelect');
+  
+  if (isConnected && _supabase) {
+    const { data, error } = await _supabase
+      .from('teachers')
+      .select('name, is_suspended, suspended_until');
 
-        if (!error && data && data.length > 0) {
-          teachersList = data;
-        } else {
-          console.warn("讀取教師名單失敗:", error);
-        }
-      }
-
-      select.innerHTML = '<option value="" disabled selected>請選擇老師姓名...</option>';
-      teachersList.forEach(teacher => {
-        const option = document.createElement('option');
-        option.value = teacher.name;
-
-        if (teacher.is_suspended) {
-          const until = teacher.suspended_until ? `至 ${teacher.suspended_until}` : '';
-          option.textContent = `⛔ ${teacher.name} (暫停借用 ${until})`.trim();
-          option.disabled = true;
-          option.classList.add('text-rose-500');
-        } else {
-          option.textContent = teacher.name;
-        }
-        select.appendChild(option);
-      });
+    if (!error && data && data.length > 0) {
+      // 使用香港繁體中文語系 (zh-HK) 進行自然排序
+      teachersList = data.sort((a, b) => a.name.localeCompare(b.name, 'zh-HK'));
+    } else {
+      console.warn("讀取教師名單失敗:", error);
     }
+  }
+
+  select.innerHTML = '<option value="" disabled selected>請選擇老師姓名...</option>';
+  teachersList.forEach(teacher => {
+    const option = document.createElement('option');
+    option.value = teacher.name;
+
+    if (teacher.is_suspended) {
+      const until = teacher.suspended_until ? `至 ${teacher.suspended_until}` : '';
+      option.textContent = `⛔ ${teacher.name} (暫停借用 ${until})`.trim();
+      option.disabled = true;
+      option.classList.add('text-rose-500');
+    } else {
+      option.textContent = teacher.name;
+    }
+    select.appendChild(option);
+  });
+}
+
 
     // ================= 4. 讀取與計算庫存 =================
     async function fetchAndRender() {

@@ -16,7 +16,7 @@
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
 
-  <!-- 頂部導航列 (含 Google 登入狀態) -->
+  <!-- 頂部導航列 -->
   <header class="bg-indigo-700 text-white shadow-md sticky top-0 z-50">
     <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-3">
       <div class="flex items-center space-x-3">
@@ -63,9 +63,10 @@
         <div>
           <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
             <i class="fa-solid fa-chart-pie text-indigo-600"></i>
-            各節設備剩餘量看板 (<span id="displaySelectedDate" class="text-indigo-600"></span>)
+            各節設備剩餘量看板 (<span id="displaySelectedDate" class="text-indigo-600 font-semibold"></span>)
           </h2>
-          <p class="text-xs text-slate-500 mt-0.5">全校總量基準：iPad 138 部｜Mobile 55 部</p>
+          <!-- 動態基準顯示 -->
+          <p id="totalStockSubtitle" class="text-xs text-slate-500 mt-0.5">全校總量基準：正在載入資料庫庫存...</p>
         </div>
         <div class="flex items-center gap-4 text-xs">
           <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-emerald-500"></span> 供應充足 (>30)</span>
@@ -90,7 +91,7 @@
           提交借用申請
         </h2>
 
-        <!-- 未登入提示覆蓋層 -->
+        <!-- 未登入提示 -->
         <div id="loginRequiredAlert" class="mb-4 p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-xs text-indigo-800 flex items-center justify-between">
           <span><i class="fa-solid fa-lock mr-1.5"></i> 請先使用學校 Google 帳號登入後登記借用。</span>
           <button onclick="loginWithGoogle()" class="text-xs font-bold text-indigo-700 underline">立即登入</button>
@@ -102,7 +103,7 @@
             <div>
               <label class="block text-xs font-semibold text-slate-600 mb-1">借用老師 <span class="text-rose-500">*</span></label>
               <select id="teacherSelect" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white">
-                <option value="" disabled selected>請選擇老師姓名...</option>
+                <option value="" disabled selected>載入教師名單中...</option>
               </select>
             </div>
             <!-- 借用課節 -->
@@ -121,12 +122,12 @@
           </div>
 
           <div class="grid grid-cols-2 gap-3">
-            <!-- 設備種類 -->
+            <!-- 設備種類 (動態顯示上限) -->
             <div>
               <label class="block text-xs font-semibold text-slate-600 mb-1">設備種類 <span class="text-rose-500">*</span></label>
               <select id="deviceType" required onchange="updateRemainingPreview()" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white">
-                <option value="iPad">iPad (上限 138)</option>
-                <option value="Mobile">Mobile (上限 55)</option>
+                <option value="iPad">iPad (上限 --)</option>
+                <option value="Mobile">Mobile (上限 --)</option>
               </select>
             </div>
             <!-- 借用數量 -->
@@ -254,7 +255,7 @@
 
     let _supabase = null;
     let isConnected = false;
-    let currentUser = null; // 存放當前登入的使用者資訊
+    let currentUser = null;
 
     try {
       if (window.supabase && SUPABASE_URL && SUPABASE_ANON_KEY) {
@@ -266,21 +267,28 @@
       console.warn("⚠️ 連線失敗", e);
     }
 
-    const TOTAL_STOCK = { iPad: 138, Mobile: 55 };
+    // 動態庫存 (預設基礎值，會自動被 Supabase 資料庫 resources 表取代)
+    let totalStock = {
+      iPad: 138,
+      Mobile: 55
+    };
+
     const LESSON_NAMES = { 1: '第 1 節', 2: '第 2 節', 3: '第 3 節', 4: '第 4 節', 5: '第 5 節', 6: '第 6 節', 7: '放學' };
+    const WEEKDAY_NAMES = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
 
     let currentBookings = [];
     let teachersList = [];
 
-    // ================= 2. 頁面初始化與登入監聽 =================
+    // ================= 2. 頁面初始化與即時監聽 =================
     document.addEventListener('DOMContentLoaded', async () => {
       const dateInput = document.getElementById('selectDate');
       dateInput.value = getTodayString();
       dateInput.addEventListener('change', fetchAndRender);
 
-      // 檢查 Google 登入狀態
       await checkAuth();
 
+      // 先載入動態庫存，再載入名單與預約
+      await loadResources();
       loadTeachers();
       fetchAndRender();
       setupRealtime();
@@ -294,6 +302,15 @@
       return `${yyyy}-${mm}-${dd}`;
     }
 
+    // 格式化日期並附帶星期幾 (如: 2026-09-13 (星期日))
+    function formatDateWithWeekday(dateStr) {
+      if (!dateStr) return '';
+      const parts = dateStr.split('-');
+      const d = new Date(parts[0], parts[1] - 1, parts[2]);
+      const weekday = WEEKDAY_NAMES[d.getDay()];
+      return `${dateStr} (${weekday})`;
+    }
+
     // 檢查登入身分
     async function checkAuth() {
       if (!isConnected || !_supabase) return;
@@ -303,11 +320,10 @@
 
       _supabase.auth.onAuthStateChange((_event, session) => {
         updateAuthUI(session?.user || null);
-        renderTable(); // 登入狀態改變時重新渲染表格權限
+        renderTable();
       });
     }
 
-    // 更新頂部登入 UI 與表單狀態
     function updateAuthUI(user) {
       currentUser = user;
       const loginBtn = document.getElementById('loginBtn');
@@ -334,23 +350,18 @@
       }
     }
 
-   // 觸發 Google 登入
-async function loginWithGoogle() {
-  if (!isConnected || !_supabase) return;
-  const { error } = await _supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: {
-      queryParams: {
-        prompt: 'select_account'
-      },
-      // 確保登入後跳轉回目前開啟的網址
-      redirectTo: window.location.origin + window.location.pathname
+    async function loginWithGoogle() {
+      if (!isConnected || !_supabase) return;
+      const { error } = await _supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          queryParams: { prompt: 'select_account' },
+          redirectTo: window.location.origin + window.location.pathname
+        }
+      });
+      if (error) alert('登入失敗：' + error.message);
     }
-  });
-  if (error) alert('登入失敗：' + error.message);
-}
 
-    // 登出
     async function logout() {
       if (!isConnected || !_supabase) return;
       await _supabase.auth.signOut();
@@ -361,6 +372,7 @@ async function loginWithGoogle() {
     function setupRealtime() {
       if (!isConnected || !_supabase) return;
 
+      // 監聽預約變更
       _supabase
         .channel('public:bookings')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
@@ -368,15 +380,54 @@ async function loginWithGoogle() {
         })
         .subscribe();
 
+      // 監聽教師狀態變更
       _supabase
         .channel('public:teachers')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'teachers' }, () => {
           loadTeachers();
         })
         .subscribe();
+
+      // 核心：監聽物資總數變更 (Supabase 修改後自動即時連動)
+      _supabase
+        .channel('public:resources')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'resources' }, async () => {
+          console.log("偵測到 resources 總量變更，正在即時同步...");
+          await loadResources();
+          renderDashboard();
+          updateRemainingPreview();
+        })
+        .subscribe();
     }
 
-    // ================= 3. 載入教師名單 (繁體中文/筆畫自然排序) =================
+    // ================= 3. 動態載入 Supabase resources 表的物資總數 =================
+    async function loadResources() {
+      if (isConnected && _supabase) {
+        const { data, error } = await _supabase
+          .from('resources')
+          .select('name, total_qty');
+
+        if (!error && data && data.length > 0) {
+          data.forEach(item => {
+            if (item.name === 'iPad') totalStock.iPad = item.total_qty;
+            if (item.name === 'Mobile') totalStock.Mobile = item.total_qty;
+          });
+        }
+      }
+
+      // 更新副標題顯示
+      document.getElementById('totalStockSubtitle').textContent = 
+        `全校總量基準：iPad ${totalStock.iPad} 部 ｜ Mobile ${totalStock.Mobile} 部`;
+
+      // 更新設備下拉選單文字
+      const deviceSelect = document.getElementById('deviceType');
+      deviceSelect.innerHTML = `
+        <option value="iPad">iPad (上限 ${totalStock.iPad})</option>
+        <option value="Mobile">Mobile (上限 ${totalStock.Mobile})</option>
+      `;
+    }
+
+    // ================= 4. 載入教師名單 (依繁體中文筆畫/拼音自然排序) =================
     async function loadTeachers() {
       const select = document.getElementById('teacherSelect');
       
@@ -386,7 +437,6 @@ async function loginWithGoogle() {
           .select('name, is_suspended, suspended_until');
 
         if (!error && data && data.length > 0) {
-          // 依香港繁體中文筆畫/拼音自然排序
           teachersList = data.sort((a, b) => a.name.localeCompare(b.name, 'zh-HK'));
         }
       }
@@ -408,10 +458,11 @@ async function loginWithGoogle() {
       });
     }
 
-    // ================= 4. 讀取預約與計算庫存 =================
+    // ================= 5. 讀取預約與計算庫存 =================
     async function fetchAndRender() {
       const selectedDate = document.getElementById('selectDate').value;
-      document.getElementById('displaySelectedDate').textContent = selectedDate;
+      // 顯示日期與星期幾
+      document.getElementById('displaySelectedDate').textContent = formatDateWithWeekday(selectedDate);
 
       if (isConnected && _supabase) {
         const { data, error } = await _supabase
@@ -433,7 +484,8 @@ async function loginWithGoogle() {
       const borrowed = currentBookings
         .filter(b => b.lesson === parseInt(lesson) && b.device_type === device)
         .reduce((sum, b) => sum + b.quantity, 0);
-      return Math.max(0, TOTAL_STOCK[device] - borrowed);
+      const total = totalStock[device] || 0;
+      return Math.max(0, total - borrowed);
     }
 
     function updateRemainingPreview() {
@@ -445,7 +497,7 @@ async function loginWithGoogle() {
       document.getElementById('quantity').max = remaining;
     }
 
-    // ================= 5. 渲染看板與清單 (含權限控制) =================
+    // ================= 6. 渲染看板與清單 (含權限控制) =================
     function renderDashboard() {
       const grid = document.getElementById('lessonsGrid');
       grid.innerHTML = '';
@@ -466,11 +518,11 @@ async function loginWithGoogle() {
           <div class="space-y-1 text-[11px]">
             <div class="flex items-center justify-between px-1.5 py-0.5 rounded border ${ipadColor}">
               <span class="font-medium">iPad</span>
-              <span class="font-bold">${remIpad} / ${TOTAL_STOCK.iPad}</span>
+              <span class="font-bold">${remIpad} / ${totalStock.iPad}</span>
             </div>
             <div class="flex items-center justify-between px-1.5 py-0.5 rounded border ${mobileColor}">
               <span class="font-medium">Mobile</span>
-              <span class="font-bold">${remMobile} / ${TOTAL_STOCK.Mobile}</span>
+              <span class="font-bold">${remMobile} / ${totalStock.Mobile}</span>
             </div>
           </div>
         `;
@@ -495,9 +547,6 @@ async function loginWithGoogle() {
       currentBookings.sort((a, b) => a.lesson - b.lesson);
       
       currentBookings.forEach(item => {
-        // 核心權限判斷：
-        // 1. 如果登入者是管理員 (ykpoon@hkrsstpss.edu.hk)，可刪除所有記錄
-        // 2. 如果登入者是該筆借用的本人 (currentUser.email === item.user_email)，可刪除自己的記錄
         const canDelete = currentUser && (
           currentUser.email === ADMIN_EMAIL || 
           (item.user_email && currentUser.email === item.user_email)
@@ -531,11 +580,10 @@ async function loginWithGoogle() {
       });
     }
 
-    // ================= 6. 提交借用表單 =================
+    // ================= 7. 提交借用表單 =================
     async function handleFormSubmit(event) {
       event.preventDefault();
 
-      // 強制要求登入
       if (!currentUser) {
         alert('請先點擊右上角使用學校 Google 帳號登入後再進行借用！');
         loginWithGoogle();
@@ -592,7 +640,7 @@ async function loginWithGoogle() {
           room,
           remarks,
           status: 'pending',
-          user_email: currentUser.email // 寫入登入者的電郵
+          user_email: currentUser.email
         }]);
 
         if (error) {
@@ -608,7 +656,7 @@ async function loginWithGoogle() {
       submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
     }
 
-    // ================= 7. 取消借用 (含權限二次防護) =================
+    // ================= 8. 取消借用 =================
     async function deleteBooking(id, teacherName) {
       if (!currentUser) {
         alert('請先登入！');

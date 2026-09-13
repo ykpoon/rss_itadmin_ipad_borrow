@@ -122,7 +122,7 @@
           </div>
 
           <div class="grid grid-cols-2 gap-3">
-            <!-- 設備種類 (動態顯示上限) -->
+            <!-- 設備種類 -->
             <div>
               <label class="block text-xs font-semibold text-slate-600 mb-1">設備種類 <span class="text-rose-500">*</span></label>
               <select id="deviceType" required onchange="updateRemainingPreview()" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white">
@@ -130,13 +130,13 @@
                 <option value="Mobile">Mobile (上限 --)</option>
               </select>
             </div>
-            <!-- 借用數量 -->
+            <!-- 借用數量 (防呆與動態上限) -->
             <div>
               <label class="block text-xs font-semibold text-slate-600 mb-1">
                 借用數量 <span class="text-rose-500">*</span>
-                <span id="stockBadge" class="text-[11px] font-normal text-indigo-600 ml-1">(尚餘: --)</span>
+                <span id="stockBadge" class="text-[11px] font-bold text-indigo-600 ml-1">(尚餘: --)</span>
               </label>
-              <input type="number" id="quantity" required min="1" max="138" placeholder="輸入數量" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+              <input type="number" id="quantity" required min="1" max="150" placeholder="輸入數量" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none">
             </div>
           </div>
 
@@ -250,7 +250,7 @@
     const SUPABASE_URL = 'https://gvysbmflwfidmifwepxz.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2eXNibWZsd2ZpZG1pZndlcHh6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkyNzM4OTEsImV4cCI6MjEwNDg0OTg5MX0.7W8fBnbmZ6nOWpZohPvo_zCprZ7Ef0jvbG11iJrywrU';
     
-    // 超級管理員電郵 (可刪除所有人記錄)
+    // 超級管理員電郵
     const ADMIN_EMAIL = 'ykpoon@hkrsstpss.edu.hk';
 
     let _supabase = null;
@@ -267,9 +267,9 @@
       console.warn("⚠️ 連線失敗", e);
     }
 
-    // 動態庫存 (預設基礎值，會自動被 Supabase 資料庫 resources 表取代)
+    // 動態庫存 (會自動被 Supabase resources 表數據取代)
     let totalStock = {
-      iPad: 138,
+      iPad: 150,
       Mobile: 55
     };
 
@@ -302,7 +302,6 @@
       return `${yyyy}-${mm}-${dd}`;
     }
 
-    // 格式化日期並附帶星期幾 (如: 2026-09-13 (星期日))
     function formatDateWithWeekday(dateStr) {
       if (!dateStr) return '';
       const parts = dateStr.split('-');
@@ -372,7 +371,6 @@
     function setupRealtime() {
       if (!isConnected || !_supabase) return;
 
-      // 監聽預約變更
       _supabase
         .channel('public:bookings')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
@@ -380,7 +378,6 @@
         })
         .subscribe();
 
-      // 監聽教師狀態變更
       _supabase
         .channel('public:teachers')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'teachers' }, () => {
@@ -388,11 +385,10 @@
         })
         .subscribe();
 
-      // 核心：監聽物資總數變更 (Supabase 修改後自動即時連動)
+      // 監聽 resources 總數變動 (Supabase 改數值後自動連動)
       _supabase
         .channel('public:resources')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'resources' }, async () => {
-          console.log("偵測到 resources 總量變更，正在即時同步...");
           await loadResources();
           renderDashboard();
           updateRemainingPreview();
@@ -400,7 +396,7 @@
         .subscribe();
     }
 
-    // ================= 3. 動態載入 Supabase resources 表的物資總數 =================
+    // ================= 3. 動態讀取 resources 資料表 =================
     async function loadResources() {
       if (isConnected && _supabase) {
         const { data, error } = await _supabase
@@ -415,11 +411,9 @@
         }
       }
 
-      // 更新副標題顯示
       document.getElementById('totalStockSubtitle').textContent = 
         `全校總量基準：iPad ${totalStock.iPad} 部 ｜ Mobile ${totalStock.Mobile} 部`;
 
-      // 更新設備下拉選單文字
       const deviceSelect = document.getElementById('deviceType');
       deviceSelect.innerHTML = `
         <option value="iPad">iPad (上限 ${totalStock.iPad})</option>
@@ -427,7 +421,7 @@
       `;
     }
 
-    // ================= 4. 載入教師名單 (依繁體中文筆畫/拼音自然排序) =================
+    // ================= 4. 載入教師名單 (依繁體中文筆畫/英文字母自然排序) =================
     async function loadTeachers() {
       const select = document.getElementById('teacherSelect');
       
@@ -458,10 +452,9 @@
       });
     }
 
-    // ================= 5. 讀取預約與計算庫存 =================
+    // ================= 5. 讀取預約與動態計算各節尚餘數量 =================
     async function fetchAndRender() {
       const selectedDate = document.getElementById('selectDate').value;
-      // 顯示日期與星期幾
       document.getElementById('displaySelectedDate').textContent = formatDateWithWeekday(selectedDate);
 
       if (isConnected && _supabase) {
@@ -480,6 +473,7 @@
       updateRemainingPreview();
     }
 
+    // 核心演算法：計算某課節的實時尚餘數量（總量 - 該節已借數量）
     function getRemainingStock(lesson, device) {
       const borrowed = currentBookings
         .filter(b => b.lesson === parseInt(lesson) && b.device_type === device)
@@ -488,16 +482,18 @@
       return Math.max(0, total - borrowed);
     }
 
+    // 動態防呆：更新數量輸入框的上限 (max) 與提示徽章
     function updateRemainingPreview() {
       const lesson = document.getElementById('lessonSelect').value;
       const device = document.getElementById('deviceType').value;
       const remaining = getRemainingStock(lesson, device);
 
       document.getElementById('stockBadge').textContent = `(尚餘: ${remaining} 部)`;
-      document.getElementById('quantity').max = remaining;
+      const qtyInput = document.getElementById('quantity');
+      qtyInput.max = remaining; // 直接鎖死輸入框最大值
     }
 
-    // ================= 6. 渲染看板與清單 (含權限控制) =================
+    // ================= 6. 渲染看板與清單 =================
     function renderDashboard() {
       const grid = document.getElementById('lessonsGrid');
       grid.innerHTML = '';
@@ -580,7 +576,7 @@
       });
     }
 
-    // ================= 7. 提交借用表單 =================
+    // ================= 7. 提交借用表單 (3 重防呆驗證) =================
     async function handleFormSubmit(event) {
       event.preventDefault();
 
@@ -611,7 +607,7 @@
         return;
       }
 
-      // 檢查黑名單
+      // 黑名單檢查
       const teacherRecord = teachersList.find(t => t.name === teacher_name);
       if (teacherRecord && teacherRecord.is_suspended) {
         alert(`❌ 借用失敗：${teacher_name} 老師目前處於停止借用期！`);
@@ -620,9 +616,10 @@
         return;
       }
 
+      // 核心防呆：提交當下再次計算實時餘額
       const remaining = getRemainingStock(lesson, device_type);
       if (quantity > remaining) {
-        alert(`❌ 借用失敗！該節 ${device_type} 尚餘數量僅剩 ${remaining} 部。`);
+        alert(`❌ 借用失敗！該節 ${device_type} 尚餘數量僅剩 ${remaining} 部，無法借出 ${quantity} 部。`);
         submitBtn.disabled = false;
         submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
         return;

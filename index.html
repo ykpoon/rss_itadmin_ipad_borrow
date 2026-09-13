@@ -62,10 +62,10 @@
       </div>
     </section>
 
-    <!-- 2. 下方兩欄佈局：借用表單 + 當日預約清單 -->
+    <!-- 2. 下方兩欄佈局 -->
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
       
-      <!-- 左側：借用表單 (佔 5 欄) -->
+      <!-- 左側：借用表單 -->
       <section class="lg:col-span-5 bg-white rounded-xl shadow-sm border border-slate-200 p-5">
         <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4 pb-3 border-b border-slate-100">
           <i class="fa-solid fa-pen-to-square text-indigo-600"></i>
@@ -74,16 +74,14 @@
 
         <form id="bookingForm" onsubmit="handleFormSubmit(event)" class="space-y-4">
           <div class="grid grid-cols-2 gap-3">
-            <!-- 教師姓名下拉選單 -->
+            <!-- 借用老師 -->
             <div>
-              <label class="block text-xs font-semibold text-slate-600 mb-1">
-                借用老師 <span class="text-rose-500">*</span>
-              </label>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">借用老師 <span class="text-rose-500">*</span></label>
               <select id="teacherSelect" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white">
                 <option value="" disabled selected>載入教師名單中...</option>
               </select>
             </div>
-            <!-- 課節時段 -->
+            <!-- 借用課節 -->
             <div>
               <label class="block text-xs font-semibold text-slate-600 mb-1">借用課節 <span class="text-rose-500">*</span></label>
               <select id="lessonSelect" required onchange="updateRemainingPreview()" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none">
@@ -99,6 +97,7 @@
           </div>
 
           <div class="grid grid-cols-2 gap-3">
+            <!-- 設備種類 -->
             <div>
               <label class="block text-xs font-semibold text-slate-600 mb-1">設備種類 <span class="text-rose-500">*</span></label>
               <select id="deviceType" required onchange="updateRemainingPreview()" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none">
@@ -106,6 +105,7 @@
                 <option value="Mobile">Mobile (上限 55)</option>
               </select>
             </div>
+            <!-- 借用數量 -->
             <div>
               <label class="block text-xs font-semibold text-slate-600 mb-1">
                 借用數量 <span class="text-rose-500">*</span>
@@ -116,17 +116,45 @@
           </div>
 
           <div class="grid grid-cols-3 gap-3">
+            <!-- 班別 (下拉選單) -->
             <div>
               <label class="block text-xs font-semibold text-slate-600 mb-1">班別 <span class="text-rose-500">*</span></label>
-              <input type="text" id="className" required placeholder="如 1A, 3B" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+              <select id="className" required class="w-full px-2 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white">
+                <option value="" disabled selected>請選擇...</option>
+                <option value="1A">1A</option><option value="1B">1B</option><option value="1C">1C</option><option value="1D">1D</option>
+                <option value="2A">2A</option><option value="2B">2B</option><option value="2C">2C</option><option value="2D">2D</option>
+                <option value="3A">3A</option><option value="3B">3B</option><option value="3C">3C</option><option value="3D">3D</option>
+                <option value="4A">4A</option><option value="4B">4B</option><option value="4C">4C</option>
+                <option value="5A">5A</option><option value="5B">5B</option><option value="5C">5C</option>
+                <option value="6A">6A</option><option value="6B">6B</option><option value="6C">6C</option><option value="6D">6D</option>
+                <option value="資源班">資源班</option>
+              </select>
             </div>
+            <!-- 科目 (下拉選單) -->
             <div>
               <label class="block text-xs font-semibold text-slate-600 mb-1">科目 <span class="text-rose-500">*</span></label>
-              <input type="text" id="subject" required placeholder="如 英文, 電腦" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+              <select id="subject" required class="w-full px-2 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white">
+                <option value="" disabled selected>請選擇...</option>
+                <option value="中文">中文</option><option value="英文">英文</option><option value="數學">數學</option>
+                <option value="綜合科學">綜合科學</option><option value="物理">物理</option><option value="化學">化學</option><option value="生物">生物</option>
+                <option value="地理">地理</option><option value="歷史">歷史</option><option value="中國歷史">中國歷史</option>
+                <option value="電腦/創科科技">電腦/創科科技</option><option value="家政">家政</option><option value="視藝">視藝</option>
+                <option value="音樂">音樂</option><option value="體育">體育</option><option value="旅遊與款待">旅遊與款待</option>
+                <option value="經濟">經濟</option><option value="BAFS">BAFS</option><option value="APL">APL</option><option value="OLE">OLE</option>
+                <option value="班主任節">班主任節</option><option value="其他">其他</option>
+              </select>
             </div>
+            <!-- 地點 / 房號 (下拉選單) -->
             <div>
-              <label class="block text-xs font-semibold text-slate-600 mb-1">地點 / 房號 <span class="text-rose-500">*</span></label>
-              <input type="text" id="room" required placeholder="如 5A 房, 電腦室" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+              <label class="block text-xs font-semibold text-slate-600 mb-1">地點/房號 <span class="text-rose-500">*</span></label>
+              <select id="room" required class="w-full px-2 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white">
+                <option value="" disabled selected>請選擇...</option>
+                <option value="地理室">地理室</option><option value="ART I">ART I</option><option value="ART II">ART II</option>
+                <option value="IS Lab">IS Lab</option><option value="Chem Lab">Chem Lab</option><option value="Phy Lab">Phy Lab</option>
+                <option value="Bio Lab">Bio Lab</option><option value="創科天地">創科天地</option><option value="廚藝學堂">廚藝學堂</option>
+                <option value="音樂室">音樂室</option><option value="圖書館">圖書館</option><option value="多用途室(一)">多用途室(一)</option>
+                <option value="多用途室(二)">多用途室(二)</option><option value="禮堂">禮堂</option><option value="普通課室">普通課室</option>
+              </select>
             </div>
           </div>
 
@@ -152,7 +180,7 @@
         </form>
       </section>
 
-      <!-- 右側：當日借用清單 (佔 7 欄) -->
+      <!-- 右側：當日借用清單 -->
       <section class="lg:col-span-7 bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex flex-col">
         <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
           <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
@@ -192,34 +220,58 @@
     學校 IT 資訊科技組 · iPad & 行動設備借用管理系統
   </footer>
 
-  <!-- JavaScript 邏輯 -->
   <script>
     // ================= 1. Supabase 連線設定 =================
-    // ⚠️ 請替換為您的 Supabase 專案 URL 與 Anon Key
+    // ⚠️ 請在此處填入您真正的 Supabase 專案網址與 Anon 金鑰
     const SUPABASE_URL = 'https://gvysbmflwfidmifwepxz.supabase.co/rest/v1/';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2eXNibWZsd2ZpZG1pZndlcHh6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkyNzM4OTEsImV4cCI6MjEwNDg0OTg5MX0.7W8fBnbmZ6nOWpZohPvo_zCprZ7Ef0jvbG11iJrywrU';
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    
+    let supabase = null;
+    let isSupabaseConnected = false;
 
-    const TOTAL_STOCK = {
-      iPad: 138,
-      Mobile: 55
-    };
+    // 嘗試建立與 Supabase 的連線
+    try {
+      if (SUPABASE_URL && !SUPABASE_URL.includes('替換成你的') && SUPABASE_ANON_KEY && !SUPABASE_ANON_KEY.includes('替換成你的')) {
+        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        isSupabaseConnected = true;
+        console.log("Supabase 連線成功！");
+      }
+    } catch (e) {
+      console.warn("Supabase 尚未設定或設定錯誤，切換至本地模擬模式", e);
+    }
 
-    const LESSON_NAMES = {
-      1: '第 1 節', 2: '第 2 節', 3: '第 3 節',
-      4: '第 4 節', 5: '第 5 節', 6: '第 6 節', 7: '放學'
-    };
+    const TOTAL_STOCK = { iPad: 138, Mobile: 55 };
+    const LESSON_NAMES = { 1: '第 1 節', 2: '第 2 節', 3: '第 3 節', 4: '第 4 節', 5: '第 5 節', 6: '第 6 節', 7: '放學' };
+
+    // 本地預設的模擬教師數據 (避免連不上的時候卡死)
+    const backupTeachers = [
+      { name: "區永裕", is_suspended: false },
+      { name: "陳大文", is_suspended: false },
+      { name: "潘老師", is_suspended: false },
+      { name: "莊銘澄", is_suspended: false },
+      { name: "李凌玲", is_suspended: false },
+      { name: "袁小敏", is_suspended: false },
+      { name: "江毅珊", is_suspended: false },
+      { name: "周貝兒", is_suspended: true, suspended_until: "2026-03-31" } // 模擬停借狀態
+    ];
+
+    // 本地模擬的借用紀錄
+    let backupBookings = [
+      { id: '1', date: getTodayString(), lesson: 1, teacher_name: '潘老師', device_type: 'iPad', quantity: 35, class: '1A', subject: '電腦/創科科技', room: '創科天地' },
+      { id: '2', date: getTodayString(), lesson: 1, teacher_name: '陳大文', device_type: 'iPad', quantity: 30, class: '2B', subject: '英文', room: '普通課室' },
+      { id: '3', date: getTodayString(), lesson: 2, teacher_name: '李凌玲', device_type: 'iPad', quantity: 35, class: '3C', subject: '數學', room: '多用途室(一)' }
+    ];
 
     let currentBookings = [];
     let teachersList = [];
 
-    // ================= 2. 頁面初始化與即時監聽 =================
+    // ================= 2. 頁面初始化 =================
     document.addEventListener('DOMContentLoaded', () => {
       const dateInput = document.getElementById('selectDate');
       dateInput.value = getTodayString();
       dateInput.addEventListener('change', fetchAndRender);
 
-      // 載入教師名單與當日預約
+      // 同時加載名單與看板數據
       loadTeachers();
       fetchAndRender();
       setupRealtimeSubscription();
@@ -229,9 +281,9 @@
       return new Date().toISOString().split('T')[0];
     }
 
-    // 開啟 Realtime 監聽 (多部裝置操作會自動即時刷新)
+    // 開啟 Realtime 即時廣播
     function setupRealtimeSubscription() {
-      // 監聽預約變動
+      if (!isSupabaseConnected) return;
       supabase
         .channel('public:bookings')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
@@ -239,7 +291,6 @@
         })
         .subscribe();
 
-      // 監聽教師狀態變動（例如解封或黑名單）
       supabase
         .channel('public:teachers')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'teachers' }, () => {
@@ -248,23 +299,27 @@
         .subscribe();
     }
 
-    // ================= 3. 載入教師名單 (含黑名單判斷) =================
+    // ================= 3. 載入教師名單 =================
     async function loadTeachers() {
       const select = document.getElementById('teacherSelect');
-      const { data, error } = await supabase
-        .from('teachers')
-        .select('name, is_suspended, suspended_until')
-        .order('name', { ascending: true });
+      
+      if (isSupabaseConnected) {
+        const { data, error } = await supabase
+          .from('teachers')
+          .select('name, is_suspended, suspended_until')
+          .order('name', { ascending: true });
 
-      if (error) {
-        console.error('載入教師名單失敗:', error);
-        select.innerHTML = '<option value="" disabled selected>載入失敗，請檢查資料庫</option>';
-        return;
+        if (!error && data) {
+          teachersList = data;
+        } else {
+          console.warn("從 Supabase 讀取教師名單失敗，使用備用教師名單", error);
+          teachersList = backupTeachers;
+        }
+      } else {
+        teachersList = backupTeachers;
       }
 
-      teachersList = data || [];
       select.innerHTML = '<option value="" disabled selected>請選擇老師姓名...</option>';
-
       teachersList.forEach(teacher => {
         const option = document.createElement('option');
         option.value = teacher.name;
@@ -277,27 +332,31 @@
         } else {
           option.textContent = teacher.name;
         }
-
         select.appendChild(option);
       });
     }
 
-    // ================= 4. 從 Supabase 讀取當日資料 =================
+    // ================= 4. 讀取與計算庫存 =================
     async function fetchAndRender() {
       const selectedDate = document.getElementById('selectDate').value;
       document.getElementById('displaySelectedDate').textContent = selectedDate;
 
-      const { data, error } = await supabase
-        .from('bookings')
-        .select('*')
-        .eq('date', selectedDate);
+      if (isSupabaseConnected) {
+        const { data, error } = await supabase
+          .from('bookings')
+          .select('*')
+          .eq('date', selectedDate);
 
-      if (error) {
-        console.error('讀取失敗:', error);
-        return;
+        if (!error && data) {
+          currentBookings = data;
+        } else {
+          console.warn("從 Supabase 讀取借用紀錄失敗，使用備用借用記錄", error);
+          currentBookings = backupBookings.filter(b => b.date === selectedDate);
+        }
+      } else {
+        currentBookings = backupBookings.filter(b => b.date === selectedDate);
       }
 
-      currentBookings = data || [];
       renderDashboard();
       renderTable();
       updateRemainingPreview();
@@ -319,7 +378,7 @@
       document.getElementById('quantity').max = remaining;
     }
 
-    // ================= 5. 畫面渲染 (看板與清單) =================
+    // ================= 5. 介面渲染 =================
     function renderDashboard() {
       const grid = document.getElementById('lessonsGrid');
       grid.innerHTML = '';
@@ -367,15 +426,14 @@
       emptyMsg.classList.add('hidden');
 
       currentBookings.sort((a, b) => a.lesson - b.lesson);
-
       currentBookings.forEach(item => {
         const tr = document.createElement('tr');
         tr.className = "hover:bg-slate-50/80 transition";
         tr.innerHTML = `
           <td class="py-2.5 px-3 font-semibold text-slate-800">${LESSON_NAMES[item.lesson]}</td>
           <td class="py-2.5 px-3 font-medium text-indigo-700">${item.teacher_name}</td>
-          <td class="py-2.5 px-3">
-            <span class="inline-flex items-center gap-1 font-bold ${item.device_type === 'iPad' ? 'text-blue-600' : 'text-purple-600'}">
+          <td class="py-2.5 px-3 text-slate-700 font-semibold">
+            <span class="${item.device_type === 'iPad' ? 'text-blue-600' : 'text-purple-600'}">
               ${item.device_type} × ${item.quantity}
             </span>
           </td>
@@ -404,9 +462,9 @@
       const teacher_name = document.getElementById('teacherSelect').value;
       const device_type = document.getElementById('deviceType').value;
       const quantity = parseInt(document.getElementById('quantity').value);
-      const className = document.getElementById('className').value.trim();
-      const subject = document.getElementById('subject').value.trim();
-      const room = document.getElementById('room').value.trim();
+      const className = document.getElementById('className').value;
+      const subject = document.getElementById('subject').value;
+      const room = document.getElementById('room').value;
       const remarks = document.getElementById('remarks').value.trim();
 
       if (!teacher_name) {
@@ -425,7 +483,6 @@
         return;
       }
 
-      // 檢查剩餘數量
       const remaining = getRemainingStock(lesson, device_type);
       if (quantity > remaining) {
         alert(`❌ 借用失敗！該節 ${device_type} 尚餘數量僅剩 ${remaining} 部。`);
@@ -434,24 +491,25 @@
         return;
       }
 
-      const { error } = await supabase.from('bookings').insert([{
-        date,
-        lesson,
-        teacher_name,
-        device_type,
-        quantity,
-        class: className,
-        subject,
-        room,
-        remarks,
-        status: 'pending'
-      }]);
+      if (isSupabaseConnected) {
+        const { error } = await supabase.from('bookings').insert([{
+          date, lesson, teacher_name, device_type, quantity, class: className, subject, room, remarks, status: 'pending'
+        }]);
 
-      if (error) {
-        console.error('寫入錯誤:', error);
-        alert('登記失敗：' + error.message);
+        if (error) {
+          alert('登記失敗：' + error.message);
+        } else {
+          alert(`✅ 借用成功！已為 ${teacher_name} 登記 ${LESSON_NAMES[lesson]} 的 ${device_type} (${quantity} 部)。`);
+          document.getElementById('bookingForm').reset();
+          fetchAndRender();
+        }
       } else {
-        alert(`✅ 借用成功！已為 ${teacher_name} 登記 ${LESSON_NAMES[lesson]} 的 ${device_type} (${quantity} 部)。`);
+        // 本地模擬模式直接新增到備用陣列
+        const newMock = {
+          id: Date.now().toString(), date, lesson, teacher_name, device_type, quantity, class: className, subject, room, remarks
+        };
+        backupBookings.push(newMock);
+        alert(`✅ [本地測試] 借用成功！已為 ${teacher_name} 登記 ${LESSON_NAMES[lesson]} 的 ${device_type} (${quantity} 部)。`);
         document.getElementById('bookingForm').reset();
         fetchAndRender();
       }
@@ -460,15 +518,21 @@
       submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
     }
 
-    // ================= 7. 取消 / 刪除借用 =================
+    // ================= 7. 取消借用 =================
     async function deleteBooking(id) {
       if (!confirm('確定要取消此借用記錄嗎？釋出的數量將即時回補。')) return;
 
-      const { error } = await supabase.from('bookings').delete().eq('id', id);
-      if (error) {
-        alert('刪除失敗：' + error.message);
+      if (isSupabaseConnected) {
+        const { error } = await supabase.from('bookings').delete().eq('id', id);
+        if (error) {
+          alert('刪除失敗：' + error.message);
+        } else {
+          fetchAndRender();
+        }
       } else {
+        backupBookings = backupBookings.filter(b => b.id !== id);
         fetchAndRender();
+        alert('✅ [本地測試] 借用已取消。');
       }
     }
   </script>

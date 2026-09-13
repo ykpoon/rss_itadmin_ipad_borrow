@@ -219,48 +219,27 @@
   <footer class="bg-white border-t border-slate-200 py-3 text-center text-xs text-slate-500">
     學校 IT 資訊科技組 · iPad & 行動設備借用管理系統
   </footer>
-
   <script>
-    // ================= 1. Supabase 連線設定 =================
-    // ⚠️ 請在此處填入您真正的 Supabase 專案網址與 Anon 金鑰
+    // ================= 1. Supabase 連線設定 (已修復變數衝突) =================
     const SUPABASE_URL = 'https://gvysbmflwfidmifwepxz.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2eXNibWZsd2ZpZG1pZndlcHh6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkyNzM4OTEsImV4cCI6MjEwNDg0OTg5MX0.7W8fBnbmZ6nOWpZohPvo_zCprZ7Ef0jvbG11iJrywrU';
-    
-    let supabase = null;
-    let isSupabaseConnected = false;
 
-    // 嘗試建立與 Supabase 的連線
+    let _supabase = null;
+    let isConnected = false;
+
+    // 建立連線
     try {
-      if (SUPABASE_URL && !SUPABASE_URL.includes('替換成你的') && SUPABASE_ANON_KEY && !SUPABASE_ANON_KEY.includes('替換成你的')) {
-        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        isSupabaseConnected = true;
-        console.log("Supabase 連線成功！");
+      if (window.supabase && SUPABASE_URL && SUPABASE_ANON_KEY) {
+        _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        isConnected = true;
+        console.log("✅ Supabase 連線成功！");
       }
     } catch (e) {
-      console.warn("Supabase 尚未設定或設定錯誤，切換至本地模擬模式", e);
+      console.warn("⚠️ 連線失敗，切換至備用模式", e);
     }
 
     const TOTAL_STOCK = { iPad: 138, Mobile: 55 };
     const LESSON_NAMES = { 1: '第 1 節', 2: '第 2 節', 3: '第 3 節', 4: '第 4 節', 5: '第 5 節', 6: '第 6 節', 7: '放學' };
-
-    // 本地預設的模擬教師數據 (避免連不上的時候卡死)
-    const backupTeachers = [
-      { name: "區永裕", is_suspended: false },
-      { name: "陳大文", is_suspended: false },
-      { name: "潘老師", is_suspended: false },
-      { name: "莊銘澄", is_suspended: false },
-      { name: "李凌玲", is_suspended: false },
-      { name: "袁小敏", is_suspended: false },
-      { name: "江毅珊", is_suspended: false },
-      { name: "周貝兒", is_suspended: true, suspended_until: "2026-03-31" } // 模擬停借狀態
-    ];
-
-    // 本地模擬的借用紀錄
-    let backupBookings = [
-      { id: '1', date: getTodayString(), lesson: 1, teacher_name: '潘老師', device_type: 'iPad', quantity: 35, class: '1A', subject: '電腦/創科科技', room: '創科天地' },
-      { id: '2', date: getTodayString(), lesson: 1, teacher_name: '陳大文', device_type: 'iPad', quantity: 30, class: '2B', subject: '英文', room: '普通課室' },
-      { id: '3', date: getTodayString(), lesson: 2, teacher_name: '李凌玲', device_type: 'iPad', quantity: 35, class: '3C', subject: '數學', room: '多用途室(一)' }
-    ];
 
     let currentBookings = [];
     let teachersList = [];
@@ -271,27 +250,31 @@
       dateInput.value = getTodayString();
       dateInput.addEventListener('change', fetchAndRender);
 
-      // 同時加載名單與看板數據
       loadTeachers();
       fetchAndRender();
-      setupRealtimeSubscription();
+      setupRealtime();
     });
 
     function getTodayString() {
-      return new Date().toISOString().split('T')[0];
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      const dd = String(today.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
     }
 
     // 開啟 Realtime 即時廣播
-    function setupRealtimeSubscription() {
-      if (!isSupabaseConnected) return;
-      supabase
+    function setupRealtime() {
+      if (!isConnected || !_supabase) return;
+
+      _supabase
         .channel('public:bookings')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
           fetchAndRender();
         })
         .subscribe();
 
-      supabase
+      _supabase
         .channel('public:teachers')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'teachers' }, () => {
           loadTeachers();
@@ -303,20 +286,17 @@
     async function loadTeachers() {
       const select = document.getElementById('teacherSelect');
       
-      if (isSupabaseConnected) {
-        const { data, error } = await supabase
+      if (isConnected && _supabase) {
+        const { data, error } = await _supabase
           .from('teachers')
           .select('name, is_suspended, suspended_until')
           .order('name', { ascending: true });
 
-        if (!error && data) {
+        if (!error && data && data.length > 0) {
           teachersList = data;
         } else {
-          console.warn("從 Supabase 讀取教師名單失敗，使用備用教師名單", error);
-          teachersList = backupTeachers;
+          console.warn("讀取教師名單失敗:", error);
         }
-      } else {
-        teachersList = backupTeachers;
       }
 
       select.innerHTML = '<option value="" disabled selected>請選擇老師姓名...</option>';
@@ -341,20 +321,15 @@
       const selectedDate = document.getElementById('selectDate').value;
       document.getElementById('displaySelectedDate').textContent = selectedDate;
 
-      if (isSupabaseConnected) {
-        const { data, error } = await supabase
+      if (isConnected && _supabase) {
+        const { data, error } = await _supabase
           .from('bookings')
           .select('*')
           .eq('date', selectedDate);
 
         if (!error && data) {
           currentBookings = data;
-        } else {
-          console.warn("從 Supabase 讀取借用紀錄失敗，使用備用借用記錄", error);
-          currentBookings = backupBookings.filter(b => b.date === selectedDate);
         }
-      } else {
-        currentBookings = backupBookings.filter(b => b.date === selectedDate);
       }
 
       renderDashboard();
@@ -449,7 +424,7 @@
       });
     }
 
-    // ================= 6. 提交借用表單 =================
+    // ================= 6. 提交借用 =================
     async function handleFormSubmit(event) {
       event.preventDefault();
 
@@ -491,8 +466,8 @@
         return;
       }
 
-      if (isSupabaseConnected) {
-        const { error } = await supabase.from('bookings').insert([{
+      if (isConnected && _supabase) {
+        const { error } = await _supabase.from('bookings').insert([{
           date, lesson, teacher_name, device_type, quantity, class: className, subject, room, remarks, status: 'pending'
         }]);
 
@@ -503,15 +478,6 @@
           document.getElementById('bookingForm').reset();
           fetchAndRender();
         }
-      } else {
-        // 本地模擬模式直接新增到備用陣列
-        const newMock = {
-          id: Date.now().toString(), date, lesson, teacher_name, device_type, quantity, class: className, subject, room, remarks
-        };
-        backupBookings.push(newMock);
-        alert(`✅ [本地測試] 借用成功！已為 ${teacher_name} 登記 ${LESSON_NAMES[lesson]} 的 ${device_type} (${quantity} 部)。`);
-        document.getElementById('bookingForm').reset();
-        fetchAndRender();
       }
 
       submitBtn.disabled = false;
@@ -522,19 +488,18 @@
     async function deleteBooking(id) {
       if (!confirm('確定要取消此借用記錄嗎？釋出的數量將即時回補。')) return;
 
-      if (isSupabaseConnected) {
-        const { error } = await supabase.from('bookings').delete().eq('id', id);
+      if (isConnected && _supabase) {
+        const { error } = await _supabase.from('bookings').delete().eq('id', id);
         if (error) {
           alert('刪除失敗：' + error.message);
         } else {
           fetchAndRender();
         }
-      } else {
-        backupBookings = backupBookings.filter(b => b.id !== id);
-        fetchAndRender();
-        alert('✅ [本地測試] 借用已取消。');
       }
     }
   </script>
+
+  
+  
 </body>
 </html>

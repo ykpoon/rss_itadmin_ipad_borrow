@@ -334,20 +334,21 @@
       }
     }
 
-    // 觸發 Google 登入
-    async function loginWithGoogle() {
-      if (!isConnected || !_supabase) return;
-      const { error } = await _supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          queryParams: {
-            prompt: 'select_account'
-          },
-          redirectTo: window.location.href
-        }
-      });
-      if (error) alert('登入失敗：' + error.message);
+   // 觸發 Google 登入
+async function loginWithGoogle() {
+  if (!isConnected || !_supabase) return;
+  const { error } = await _supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      queryParams: {
+        prompt: 'select_account'
+      },
+      // 確保登入後跳轉回目前開啟的網址
+      redirectTo: window.location.origin + window.location.pathname
     }
+  });
+  if (error) alert('登入失敗：' + error.message);
+}
 
     // 登出
     async function logout() {

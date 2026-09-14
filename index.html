@@ -27,13 +27,20 @@
         </div>
       </div>
       
-      <!-- 右側：日期選擇與 Google 登入按鈕 -->
+      <!-- 右側：日期選擇、管理員後台跳轉按鈕、Google 登入狀態 -->
       <div class="flex items-center space-x-3">
+        
+        <!-- 查詢日期 -->
         <div class="flex items-center space-x-2 bg-indigo-800/60 px-3 py-1.5 rounded-lg border border-indigo-500/30">
           <i class="fa-regular fa-calendar text-indigo-300"></i>
           <label for="selectDate" class="text-xs font-medium text-indigo-200">查詢日期：</label>
           <input type="date" id="selectDate" class="bg-transparent text-white text-sm font-semibold focus:outline-none cursor-pointer">
         </div>
+
+        <!-- 🌟 管理員專屬跳轉按鈕 (預設隱藏，管理員登入後自動顯示) -->
+        <a id="adminPortalBtn" href="admin.html" class="hidden bg-amber-400 hover:bg-amber-300 text-amber-950 font-bold text-xs px-3 py-2 rounded-lg shadow-sm flex items-center gap-1.5 transition border border-amber-500">
+          <i class="fa-solid fa-screwdriver-wrench"></i> 進入 IT 後台
+        </a>
 
         <!-- 登入控制區 -->
         <div id="authContainer">
@@ -122,7 +129,7 @@
           </div>
 
           <div class="grid grid-cols-2 gap-3">
-            <!-- 設備種類 (已去除上限字眼) -->
+            <!-- 設備種類 -->
             <div>
               <label class="block text-xs font-semibold text-slate-600 mb-1">設備種類 <span class="text-rose-500">*</span></label>
               <select id="deviceType" required onchange="updateRemainingPreview()" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white">
@@ -250,8 +257,10 @@
     const SUPABASE_URL = 'https://gvysbmflwfidmifwepxz.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2eXNibWZsd2ZpZG1pZndlcHh6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkyNzM4OTEsImV4cCI6MjEwNDg0OTg5MX0.7W8fBnbmZ6nOWpZohPvo_zCprZ7Ef0jvbG11iJrywrU';
     
-    // 超級管理員電郵
-    const ADMIN_EMAIL = 'ykpoon@hkrsstpss.edu.hk';
+    // 🌟 管理員白名單清單 (可增加多位管理員)
+    const ADMIN_EMAILS = [
+      'ykpoon@hkrsstpss.edu.hk'
+    ];
 
     let _supabase = null;
     let isConnected = false;
@@ -267,7 +276,6 @@
       console.warn("⚠️ 連線失敗", e);
     }
 
-    // 動態庫存
     let totalStock = {
       iPad: 150,
       Mobile: 55
@@ -309,6 +317,11 @@
       return `${dateStr} (${weekday})`;
     }
 
+    // 檢查是否為管理員
+    function checkIsAdmin(email) {
+      return email && ADMIN_EMAILS.includes(email.toLowerCase());
+    }
+
     async function checkAuth() {
       if (!isConnected || !_supabase) return;
 
@@ -321,12 +334,14 @@
       });
     }
 
+    // 🌟 更新 UI：管理員登入後自動顯示「進入 IT 後台」按鈕
     function updateAuthUI(user) {
       currentUser = user;
       const loginBtn = document.getElementById('loginBtn');
       const userInfo = document.getElementById('userInfo');
       const emailDisplay = document.getElementById('userEmailDisplay');
       const adminBadge = document.getElementById('adminBadge');
+      const adminPortalBtn = document.getElementById('adminPortalBtn');
       const loginAlert = document.getElementById('loginRequiredAlert');
 
       if (user) {
@@ -335,14 +350,18 @@
         emailDisplay.textContent = user.email;
         loginAlert.classList.add('hidden');
 
-        if (user.email === ADMIN_EMAIL) {
+        const isAdmin = checkIsAdmin(user.email);
+        if (isAdmin) {
           adminBadge.classList.remove('hidden');
+          adminPortalBtn.classList.remove('hidden'); // 顯示進入後台按鈕
         } else {
           adminBadge.classList.add('hidden');
+          adminPortalBtn.classList.add('hidden');
         }
       } else {
         loginBtn.classList.remove('hidden');
         userInfo.classList.add('hidden');
+        adminPortalBtn.classList.add('hidden');
         loginAlert.classList.remove('hidden');
       }
     }
@@ -392,7 +411,7 @@
         .subscribe();
     }
 
-    // ================= 3. 動態讀取 resources 資料表 (純名稱選項) =================
+    // ================= 3. 動態讀取 resources 資料表 =================
     async function loadResources() {
       if (isConnected && _supabase) {
         const { data, error } = await _supabase
@@ -410,7 +429,6 @@
       document.getElementById('totalStockSubtitle').textContent = 
         `全校總量基準：iPad ${totalStock.iPad} 部 ｜ Mobile ${totalStock.Mobile} 部`;
 
-      // 保持下拉選單純淨
       const deviceSelect = document.getElementById('deviceType');
       const selectedVal = deviceSelect.value || 'iPad';
       deviceSelect.innerHTML = `
@@ -451,7 +469,7 @@
       });
     }
 
-    // ================= 5. 讀取預約與動態計算各節尚餘數量 =================
+    // ================= 5. 讀取預約與計算庫存 =================
     async function fetchAndRender() {
       const selectedDate = document.getElementById('selectDate').value;
       document.getElementById('displaySelectedDate').textContent = formatDateWithWeekday(selectedDate);
@@ -540,10 +558,9 @@
       currentBookings.sort((a, b) => a.lesson - b.lesson);
       
       currentBookings.forEach(item => {
-        const canDelete = currentUser && (
-          currentUser.email === ADMIN_EMAIL || 
-          (item.user_email && currentUser.email === item.user_email)
-        );
+        const isAdmin = currentUser && checkIsAdmin(currentUser.email);
+        const isOwner = currentUser && (item.user_email && currentUser.email === item.user_email);
+        const canDelete = isAdmin || isOwner;
 
         const tr = document.createElement('tr');
         tr.className = "hover:bg-slate-50/80 transition";

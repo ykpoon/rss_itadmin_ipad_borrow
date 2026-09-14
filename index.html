@@ -12,6 +12,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+    .tab-btn.active { border-color: #4f46e5; color: #4f46e5; font-weight: 700; }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
@@ -29,15 +30,13 @@
       
       <!-- 右側：日期選擇、管理員後台跳轉按鈕、Google 登入狀態 -->
       <div class="flex items-center space-x-3">
-        
-        <!-- 查詢日期 -->
         <div class="flex items-center space-x-2 bg-indigo-800/60 px-3 py-1.5 rounded-lg border border-indigo-500/30">
           <i class="fa-regular fa-calendar text-indigo-300"></i>
           <label for="selectDate" class="text-xs font-medium text-indigo-200">查詢日期：</label>
           <input type="date" id="selectDate" class="bg-transparent text-white text-sm font-semibold focus:outline-none cursor-pointer">
         </div>
 
-        <!-- 🌟 管理員專屬跳轉按鈕 (預設隱藏，管理員登入後自動顯示) -->
+        <!-- 管理員專屬跳轉按鈕 (預設隱藏) -->
         <a id="adminPortalBtn" href="admin.html" class="hidden bg-amber-400 hover:bg-amber-300 text-amber-950 font-bold text-xs px-3 py-2 rounded-lg shadow-sm flex items-center gap-1.5 transition border border-amber-500">
           <i class="fa-solid fa-screwdriver-wrench"></i> 進入 IT 後台
         </a>
@@ -64,188 +63,228 @@
   <!-- 主要內容區 -->
   <main class="max-w-7xl mx-auto px-4 py-6 flex-1 w-full space-y-6">
 
-    <!-- 1. 各節設備剩餘量看板 -->
-    <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
-      <div class="flex flex-col md:flex-row md:items-center justify-between pb-4 mb-4 border-b border-slate-100 gap-2">
+    <!-- 前台分頁導覽 Tab -->
+    <div class="flex border-b border-slate-200 space-x-6">
+      <button onclick="switchFrontTab('booking-section')" id="tabBtn-booking" class="tab-btn active pb-3 px-1 text-sm flex items-center gap-2 border-b-2">
+        <i class="fa-solid fa-calendar-days"></i> 📝 設備預約登記
+      </button>
+      <button onclick="switchFrontTab('teachers-section')" id="tabBtn-teachers" class="tab-btn pb-3 px-1 text-sm flex items-center gap-2 border-b-2 border-transparent text-slate-500 hover:text-slate-700">
+        <i class="fa-solid fa-users-slash"></i> 📊 欠取統計與停借名單 (唯讀)
+      </button>
+    </div>
+
+    <!-- ================= 分頁 1: 預約登記 ================= -->
+    <div id="booking-section" class="tab-section-content space-y-6">
+      <!-- 1. 各節設備剩餘量看板 -->
+      <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+        <div class="flex flex-col md:flex-row md:items-center justify-between pb-4 mb-4 border-b border-slate-100 gap-2">
+          <div>
+            <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+              <i class="fa-solid fa-chart-pie text-indigo-600"></i>
+              各節設備剩餘量看板 (<span id="displaySelectedDate" class="text-indigo-600"></span>)
+            </h2>
+            <p id="totalStockSubtitle" class="text-xs text-slate-500 mt-0.5">全校總量基準：正在載入資料庫庫存...</p>
+          </div>
+          <div class="flex items-center gap-4 text-xs">
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-emerald-500"></span> 供應充足 (>30)</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-amber-500"></span> 緊張 (1-30)</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-rose-500"></span> 額滿 (0)</span>
+          </div>
+        </div>
+
+        <!-- 課節卡片網格 -->
+        <div id="lessonsGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
+          <!-- 課節卡片由 JS 動態生成 -->
+        </div>
+      </section>
+
+      <!-- 2. 表單 + 清單 兩欄佈局 -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- 左側：借用表單 -->
+        <section class="lg:col-span-5 bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+          <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4 pb-3 border-b border-slate-100">
+            <i class="fa-solid fa-pen-to-square text-indigo-600"></i>
+            提交借用申請
+          </h2>
+
+          <!-- 未登入提示 -->
+          <div id="loginRequiredAlert" class="mb-4 p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-xs text-indigo-800 flex items-center justify-between">
+            <span><i class="fa-solid fa-lock mr-1.5"></i> 請先使用學校 Google 帳號登入後登記借用。</span>
+            <button onclick="loginWithGoogle()" class="text-xs font-bold text-indigo-700 underline">立即登入</button>
+          </div>
+
+          <form id="bookingForm" onsubmit="handleFormSubmit(event)" class="space-y-4">
+            <div class="grid grid-cols-2 gap-3">
+              <!-- 借用老師 -->
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">借用老師 <span class="text-rose-500">*</span></label>
+                <select id="teacherSelect" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white">
+                  <option value="" disabled selected>載入教師名單中...</option>
+                </select>
+              </div>
+              <!-- 借用課節 -->
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">借用課節 <span class="text-rose-500">*</span></label>
+                <select id="lessonSelect" required onchange="updateRemainingPreview()" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                  <option value="1">第 1 節 (Lesson 1)</option>
+                  <option value="2">第 2 節 (Lesson 2)</option>
+                  <option value="3">第 3 節 (Lesson 3)</option>
+                  <option value="4">第 4 節 (Lesson 4)</option>
+                  <option value="5">第 5 節 (Lesson 5)</option>
+                  <option value="6">第 6 節 (Lesson 6)</option>
+                  <option value="7">放學 (After School)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <!-- 設備種類 -->
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">設備種類 <span class="text-rose-500">*</span></label>
+                <select id="deviceType" required onchange="updateRemainingPreview()" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white">
+                  <option value="iPad">iPad</option>
+                  <option value="Mobile">Mobile</option>
+                </select>
+              </div>
+              <!-- 借用數量 -->
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">
+                  借用數量 <span class="text-rose-500">*</span>
+                  <span id="stockBadge" class="text-[11px] font-bold text-indigo-600 ml-1">(尚餘: --)</span>
+                </label>
+                <input type="number" id="quantity" required min="1" max="150" placeholder="輸入數量" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+              </div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-3">
+              <!-- 班別 (下拉選單) -->
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">班別 <span class="text-rose-500">*</span></label>
+                <select id="className" required class="w-full px-2 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white">
+                  <option value="" disabled selected>請選擇...</option>
+                  <option value="1A">1A</option><option value="1B">1B</option><option value="1C">1C</option><option value="1D">1D</option>
+                  <option value="2A">2A</option><option value="2B">2B</option><option value="2C">2C</option><option value="2D">2D</option>
+                  <option value="3A">3A</option><option value="3B">3B</option><option value="3C">3C</option><option value="3D">3D</option>
+                  <option value="4A">4A</option><option value="4B">4B</option><option value="4C">4C</option>
+                  <option value="5A">5A</option><option value="5B">5B</option><option value="5C">5C</option>
+                  <option value="6A">6A</option><option value="6B">6B</option><option value="6C">6C</option><option value="6D">6D</option>
+                  <option value="資源班">資源班</option>
+                </select>
+              </div>
+              <!-- 科目 (下拉選單) -->
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">科目 <span class="text-rose-500">*</span></label>
+                <select id="subject" required class="w-full px-2 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white">
+                  <option value="" disabled selected>請選擇...</option>
+                  <option value="中文">中文</option><option value="英文">英文</option><option value="數學">數學</option>
+                  <option value="綜合科學">綜合科學</option><option value="物理">物理</option><option value="化學">化學</option><option value="生物">生物</option>
+                  <option value="地理">地理</option><option value="歷史">歷史</option><option value="中國歷史">中國歷史</option>
+                  <option value="電腦/創科科技">電腦/創科科技</option><option value="家政">家政</option><option value="視藝">視藝</option>
+                  <option value="音樂">音樂</option><option value="體育">體育</option><option value="旅遊與款待">旅遊與款待</option>
+                  <option value="經濟">經濟</option><option value="BAFS">BAFS</option><option value="APL">APL</option><option value="OLE">OLE</option>
+                  <option value="班主任節">班主任節</option><option value="其他">其他</option>
+                </select>
+              </div>
+              <!-- 地點 / 房號 (下拉選單) -->
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">地點/房號 <span class="text-rose-500">*</span></label>
+                <select id="room" required class="w-full px-2 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white">
+                  <option value="" disabled selected>請選擇...</option>
+                  <option value="地理室">地理室</option><option value="ART I">ART I</option><option value="ART II">ART II</option>
+                  <option value="IS Lab">IS Lab</option><option value="Chem Lab">Chem Lab</option><option value="Phy Lab">Phy Lab</option>
+                  <option value="Bio Lab">Bio Lab</option><option value="創科天地">創科天地</option><option value="廚藝學堂">廚藝學堂</option>
+                  <option value="音樂室">音樂室</option><option value="圖書館">圖書館</option><option value="多用途室(一)">多用途室(一)</option>
+                  <option value="多用途室(二)">多用途室(二)</option><option value="禮堂">禮堂</option><option value="普通課室">普通課室</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">備註 / 特殊需求 (選填)</label>
+              <input type="text" id="remarks" placeholder="如需 Apple Pencil 或特定充電箱等" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+            </div>
+
+            <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 space-y-1">
+              <p class="font-bold flex items-center gap-1">
+                <i class="fa-solid fa-triangle-exclamation text-amber-600"></i> 借用規則提醒：
+              </p>
+              <ul class="list-disc list-inside space-y-0.5 text-[11px] text-amber-700">
+                <li>借用採取先到先得原則，超出尚餘數量則無法成功登記。</li>
+                <li>使用完畢後請於當節結束或放學前準時歸還至圖書館。</li>
+              </ul>
+            </div>
+
+            <button type="submit" id="submitBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-4 rounded-lg shadow transition flex items-center justify-center gap-2">
+              <i class="fa-solid fa-paper-plane"></i> 確認提交借用登記
+            </button>
+          </form>
+        </section>
+
+        <!-- 右側：當日借用清單 -->
+        <section class="lg:col-span-7 bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex flex-col">
+          <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+            <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+              <i class="fa-solid fa-list-check text-indigo-600"></i>
+              當日借用詳情清單
+            </h2>
+            <span id="recordCount" class="text-xs bg-slate-100 text-slate-600 font-medium px-2.5 py-1 rounded-full">共 0 筆記錄</span>
+          </div>
+
+          <div class="overflow-x-auto flex-1">
+            <table class="w-full text-left text-xs text-slate-600">
+              <thead class="bg-slate-50 text-slate-700 uppercase font-semibold border-b border-slate-200">
+                <tr>
+                  <th class="py-2.5 px-3">課節</th>
+                  <th class="py-2.5 px-3">老師</th>
+                  <th class="py-2.5 px-3">設備 / 數量</th>
+                  <th class="py-2.5 px-3">班別 / 科目</th>
+                  <th class="py-2.5 px-3">地點</th>
+                  <th class="py-2.5 px-3 text-center">操作</th>
+                </tr>
+              </thead>
+              <tbody id="bookingsTableBody" class="divide-y divide-slate-100 font-normal">
+                <!-- 表格內容由 JS 動態生成 -->
+              </tbody>
+            </table>
+            <div id="emptyMessage" class="hidden text-center py-12 text-slate-400">
+              <i class="fa-solid fa-inbox text-3xl mb-2"></i>
+              <p class="text-sm">本日該時段暫無 any 借用記錄</p>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <!-- ================= 分頁 2: 欠取統計與停借名單 (唯讀) ================= -->
+    <div id="teachers-section" class="tab-section-content hidden bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+      <div class="flex justify-between items-center border-b pb-4 mb-4">
         <div>
           <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
-            <i class="fa-solid fa-chart-pie text-indigo-600"></i>
-            各節設備剩餘量看板 (<span id="displaySelectedDate" class="text-indigo-600 font-semibold"></span>)
+            <i class="fa-solid fa-users-slash text-rose-600"></i>
+            全校教師欠取統計與停借管理 (資訊公示)
           </h2>
-          <!-- 動態基準顯示 -->
-          <p id="totalStockSubtitle" class="text-xs text-slate-500 mt-0.5">全校總量基準：正在載入資料庫庫存...</p>
+          <p class="text-xs text-slate-500 mt-1">此名單每週一自動更新。累計欠取滿 2 次者，系統將自動啟動暫停借用限制。</p>
         </div>
-        <div class="flex items-center gap-4 text-xs">
-          <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-emerald-500"></span> 供應充足 (>30)</span>
-          <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-amber-500"></span> 緊張 (1-30)</span>
-          <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-rose-500"></span> 額滿 (0)</span>
-        </div>
+        <span id="frontSuspendedCount" class="text-xs bg-rose-100 text-rose-800 px-3 py-1 rounded-full font-semibold">0 位停借中</span>
       </div>
 
-      <!-- 課節卡片網格 -->
-      <div id="lessonsGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
-        <!-- 課節卡片由 JS 動態生成 -->
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs text-slate-600">
+          <thead class="bg-slate-50 text-slate-700 uppercase font-semibold border-b border-slate-200">
+            <tr>
+              <th class="py-3 px-4">老師姓名</th>
+              <th class="py-3 px-4">累計欠取次數</th>
+              <th class="py-3 px-4">借用權限狀態</th>
+              <th class="py-3 px-4">停借截止日期</th>
+            </tr>
+          </thead>
+          <tbody id="frontTeachersTableBody" class="divide-y divide-slate-100">
+            <!-- 教師名單由 JS 動態生成 -->
+          </tbody>
+        </table>
       </div>
-    </section>
-
-    <!-- 2. 下方兩欄佈局 -->
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-      
-      <!-- 左側：借用表單 -->
-      <section class="lg:col-span-5 bg-white rounded-xl shadow-sm border border-slate-200 p-5">
-        <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4 pb-3 border-b border-slate-100">
-          <i class="fa-solid fa-pen-to-square text-indigo-600"></i>
-          提交借用申請
-        </h2>
-
-        <!-- 未登入提示 -->
-        <div id="loginRequiredAlert" class="mb-4 p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-xs text-indigo-800 flex items-center justify-between">
-          <span><i class="fa-solid fa-lock mr-1.5"></i> 請先使用學校 Google 帳號登入後登記借用。</span>
-          <button onclick="loginWithGoogle()" class="text-xs font-bold text-indigo-700 underline">立即登入</button>
-        </div>
-
-        <form id="bookingForm" onsubmit="handleFormSubmit(event)" class="space-y-4">
-          <div class="grid grid-cols-2 gap-3">
-            <!-- 借用老師 -->
-            <div>
-              <label class="block text-xs font-semibold text-slate-600 mb-1">借用老師 <span class="text-rose-500">*</span></label>
-              <select id="teacherSelect" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white">
-                <option value="" disabled selected>載入教師名單中...</option>
-              </select>
-            </div>
-            <!-- 借用課節 -->
-            <div>
-              <label class="block text-xs font-semibold text-slate-600 mb-1">借用課節 <span class="text-rose-500">*</span></label>
-              <select id="lessonSelect" required onchange="updateRemainingPreview()" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white">
-                <option value="1">第 1 節 (Lesson 1)</option>
-                <option value="2">第 2 節 (Lesson 2)</option>
-                <option value="3">第 3 節 (Lesson 3)</option>
-                <option value="4">第 4 節 (Lesson 4)</option>
-                <option value="5">第 5 節 (Lesson 5)</option>
-                <option value="6">第 6 節 (Lesson 6)</option>
-                <option value="7">放學 (After School)</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-2 gap-3">
-            <!-- 設備種類 -->
-            <div>
-              <label class="block text-xs font-semibold text-slate-600 mb-1">設備種類 <span class="text-rose-500">*</span></label>
-              <select id="deviceType" required onchange="updateRemainingPreview()" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white">
-                <option value="iPad">iPad</option>
-                <option value="Mobile">Mobile</option>
-              </select>
-            </div>
-            <!-- 借用數量 -->
-            <div>
-              <label class="block text-xs font-semibold text-slate-600 mb-1">
-                借用數量 <span class="text-rose-500">*</span>
-                <span id="stockBadge" class="text-[11px] font-bold text-indigo-600 ml-1">(尚餘: --)</span>
-              </label>
-              <input type="number" id="quantity" required min="1" max="150" placeholder="輸入數量" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none">
-            </div>
-          </div>
-
-          <div class="grid grid-cols-3 gap-3">
-            <!-- 班別 (下拉選單) -->
-            <div>
-              <label class="block text-xs font-semibold text-slate-600 mb-1">班別 <span class="text-rose-500">*</span></label>
-              <select id="className" required class="w-full px-2 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white">
-                <option value="" disabled selected>請選擇...</option>
-                <option value="1A">1A</option><option value="1B">1B</option><option value="1C">1C</option><option value="1D">1D</option>
-                <option value="2A">2A</option><option value="2B">2B</option><option value="2C">2C</option><option value="2D">2D</option>
-                <option value="3A">3A</option><option value="3B">3B</option><option value="3C">3C</option><option value="3D">3D</option>
-                <option value="4A">4A</option><option value="4B">4B</option><option value="4C">4C</option>
-                <option value="5A">5A</option><option value="5B">5B</option><option value="5C">5C</option>
-                <option value="6A">6A</option><option value="6B">6B</option><option value="6C">6C</option><option value="6D">6D</option>
-                <option value="資源班">資源班</option>
-              </select>
-            </div>
-            <!-- 科目 (下拉選單) -->
-            <div>
-              <label class="block text-xs font-semibold text-slate-600 mb-1">科目 <span class="text-rose-500">*</span></label>
-              <select id="subject" required class="w-full px-2 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white">
-                <option value="" disabled selected>請選擇...</option>
-                <option value="中文">中文</option><option value="英文">英文</option><option value="數學">數學</option>
-                <option value="綜合科學">綜合科學</option><option value="物理">物理</option><option value="化學">化學</option><option value="生物">生物</option>
-                <option value="地理">地理</option><option value="歷史">歷史</option><option value="中國歷史">中國歷史</option>
-                <option value="電腦/創科科技">電腦/創科科技</option><option value="家政">家政</option><option value="視藝">視藝</option>
-                <option value="音樂">音樂</option><option value="體育">體育</option><option value="旅遊與款待">旅遊與款待</option>
-                <option value="經濟">經濟</option><option value="BAFS">BAFS</option><option value="APL">APL</option><option value="OLE">OLE</option>
-                <option value="班主任節">班主任節</option><option value="其他">其他</option>
-              </select>
-            </div>
-            <!-- 地點 / 房號 (下拉選單) -->
-            <div>
-              <label class="block text-xs font-semibold text-slate-600 mb-1">地點/房號 <span class="text-rose-500">*</span></label>
-              <select id="room" required class="w-full px-2 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white">
-                <option value="" disabled selected>請選擇...</option>
-                <option value="地理室">地理室</option><option value="ART I">ART I</option><option value="ART II">ART II</option>
-                <option value="IS Lab">IS Lab</option><option value="Chem Lab">Chem Lab</option><option value="Phy Lab">Phy Lab</option>
-                <option value="Bio Lab">Bio Lab</option><option value="創科天地">創科天地</option><option value="廚藝學堂">廚藝學堂</option>
-                <option value="音樂室">音樂室</option><option value="圖書館">圖書館</option><option value="多用途室(一)">多用途室(一)</option>
-                <option value="多用途室(二)">多用途室(二)</option><option value="禮堂">禮堂</option><option value="普通課室">普通課室</option>
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label class="block text-xs font-semibold text-slate-600 mb-1">備註 / 特殊需求 (選填)</label>
-            <input type="text" id="remarks" placeholder="如需 Apple Pencil 或特定充電箱等" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none">
-          </div>
-
-          <!-- 借用規則提示 -->
-          <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 space-y-1">
-            <p class="font-bold flex items-center gap-1">
-              <i class="fa-solid fa-triangle-exclamation text-amber-600"></i> 借用規則提醒：
-            </p>
-            <ul class="list-disc list-inside space-y-0.5 text-[11px] text-amber-700">
-              <li>借用採取先到先得原則，超出尚餘數量則無法成功登記。</li>
-              <li>使用完畢後請於當節結束或放學前準時歸還至圖書館。</li>
-            </ul>
-          </div>
-
-          <button type="submit" id="submitBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-4 rounded-lg shadow transition flex items-center justify-center gap-2">
-            <i class="fa-solid fa-paper-plane"></i> 確認提交借用登記
-          </button>
-        </form>
-      </section>
-
-      <!-- 右側：當日借用清單 -->
-      <section class="lg:col-span-7 bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex flex-col">
-        <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
-          <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
-            <i class="fa-solid fa-list-check text-indigo-600"></i>
-            當日借用詳情清單
-          </h2>
-          <span id="recordCount" class="text-xs bg-slate-100 text-slate-600 font-medium px-2.5 py-1 rounded-full">共 0 筆記錄</span>
-        </div>
-
-        <div class="overflow-x-auto flex-1">
-          <table class="w-full text-left text-xs text-slate-600">
-            <thead class="bg-slate-50 text-slate-700 uppercase font-semibold border-b border-slate-200">
-              <tr>
-                <th class="py-2.5 px-3">課節</th>
-                <th class="py-2.5 px-3">老師</th>
-                <th class="py-2.5 px-3">設備 / 數量</th>
-                <th class="py-2.5 px-3">班別 / 科目</th>
-                <th class="py-2.5 px-3">地點</th>
-                <th class="py-2.5 px-3 text-center">操作</th>
-              </tr>
-            </thead>
-            <tbody id="bookingsTableBody" class="divide-y divide-slate-100 font-normal">
-              <!-- 表格內容由 JS 動態生成 -->
-            </tbody>
-          </table>
-          <div id="emptyMessage" class="hidden text-center py-12 text-slate-400">
-            <i class="fa-solid fa-inbox text-3xl mb-2"></i>
-            <p class="text-sm">本日該時段暫無任何借用記錄</p>
-          </div>
-        </div>
-      </section>
-
     </div>
+
   </main>
 
   <footer class="bg-white border-t border-slate-200 py-3 text-center text-xs text-slate-500">
@@ -257,10 +296,7 @@
     const SUPABASE_URL = 'https://gvysbmflwfidmifwepxz.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2eXNibWZsd2ZpZG1pZndlcHh6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkyNzM4OTEsImV4cCI6MjEwNDg0OTg5MX0.7W8fBnbmZ6nOWpZohPvo_zCprZ7Ef0jvbG11iJrywrU';
     
-    // 🌟 管理員白名單清單 (可增加多位管理員)
-    const ADMIN_EMAILS = [
-      'ykpoon@hkrsstpss.edu.hk'
-    ];
+    const ADMIN_EMAILS = ['ykpoon@hkrsstpss.edu.hk'];
 
     let _supabase = null;
     let isConnected = false;
@@ -276,413 +312,10 @@
       console.warn("⚠️ 連線失敗", e);
     }
 
-    let totalStock = {
-      iPad: 150,
-      Mobile: 55
-    };
+    // 動態庫存物資總數
+    let totalStock = { iPad: 150, Mobile: 55 };
 
     const LESSON_NAMES = { 1: '第 1 節', 2: '第 2 節', 3: '第 3 節', 4: '第 4 節', 5: '第 5 節', 6: '第 6 節', 7: '放學' };
     const WEEKDAY_NAMES = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
 
-    let currentBookings = [];
-    let teachersList = [];
-
-    // ================= 2. 頁面初始化與即時監聽 =================
-    document.addEventListener('DOMContentLoaded', async () => {
-      const dateInput = document.getElementById('selectDate');
-      dateInput.value = getTodayString();
-      dateInput.addEventListener('change', fetchAndRender);
-
-      await checkAuth();
-
-      await loadResources();
-      loadTeachers();
-      fetchAndRender();
-      setupRealtime();
-    });
-
-    function getTodayString() {
-      const today = new Date();
-      const yyyy = today.getFullYear();
-      const mm = String(today.getMonth() + 1).padStart(2, '0');
-      const dd = String(today.getDate()).padStart(2, '0');
-      return `${yyyy}-${mm}-${dd}`;
-    }
-
-    function formatDateWithWeekday(dateStr) {
-      if (!dateStr) return '';
-      const parts = dateStr.split('-');
-      const d = new Date(parts[0], parts[1] - 1, parts[2]);
-      const weekday = WEEKDAY_NAMES[d.getDay()];
-      return `${dateStr} (${weekday})`;
-    }
-
-    // 檢查是否為管理員
-    function checkIsAdmin(email) {
-      return email && ADMIN_EMAILS.includes(email.toLowerCase());
-    }
-
-    async function checkAuth() {
-      if (!isConnected || !_supabase) return;
-
-      const { data: { session } } = await _supabase.auth.getSession();
-      updateAuthUI(session?.user || null);
-
-      _supabase.auth.onAuthStateChange((_event, session) => {
-        updateAuthUI(session?.user || null);
-        renderTable();
-      });
-    }
-
-    // 🌟 更新 UI：管理員登入後自動顯示「進入 IT 後台」按鈕
-    function updateAuthUI(user) {
-      currentUser = user;
-      const loginBtn = document.getElementById('loginBtn');
-      const userInfo = document.getElementById('userInfo');
-      const emailDisplay = document.getElementById('userEmailDisplay');
-      const adminBadge = document.getElementById('adminBadge');
-      const adminPortalBtn = document.getElementById('adminPortalBtn');
-      const loginAlert = document.getElementById('loginRequiredAlert');
-
-      if (user) {
-        loginBtn.classList.add('hidden');
-        userInfo.classList.remove('hidden');
-        emailDisplay.textContent = user.email;
-        loginAlert.classList.add('hidden');
-
-        const isAdmin = checkIsAdmin(user.email);
-        if (isAdmin) {
-          adminBadge.classList.remove('hidden');
-          adminPortalBtn.classList.remove('hidden'); // 顯示進入後台按鈕
-        } else {
-          adminBadge.classList.add('hidden');
-          adminPortalBtn.classList.add('hidden');
-        }
-      } else {
-        loginBtn.classList.remove('hidden');
-        userInfo.classList.add('hidden');
-        adminPortalBtn.classList.add('hidden');
-        loginAlert.classList.remove('hidden');
-      }
-    }
-
-    async function loginWithGoogle() {
-      if (!isConnected || !_supabase) return;
-      const { error } = await _supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          queryParams: { prompt: 'select_account' },
-          redirectTo: window.location.origin + window.location.pathname
-        }
-      });
-      if (error) alert('登入失敗：' + error.message);
-    }
-
-    async function logout() {
-      if (!isConnected || !_supabase) return;
-      await _supabase.auth.signOut();
-      location.reload();
-    }
-
-    function setupRealtime() {
-      if (!isConnected || !_supabase) return;
-
-      _supabase
-        .channel('public:bookings')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
-          fetchAndRender();
-        })
-        .subscribe();
-
-      _supabase
-        .channel('public:teachers')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'teachers' }, () => {
-          loadTeachers();
-        })
-        .subscribe();
-
-      _supabase
-        .channel('public:resources')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'resources' }, async () => {
-          await loadResources();
-          renderDashboard();
-          updateRemainingPreview();
-        })
-        .subscribe();
-    }
-
-    // ================= 3. 動態讀取 resources 資料表 =================
-    async function loadResources() {
-      if (isConnected && _supabase) {
-        const { data, error } = await _supabase
-          .from('resources')
-          .select('name, total_qty');
-
-        if (!error && data && data.length > 0) {
-          data.forEach(item => {
-            if (item.name === 'iPad') totalStock.iPad = item.total_qty;
-            if (item.name === 'Mobile') totalStock.Mobile = item.total_qty;
-          });
-        }
-      }
-
-      document.getElementById('totalStockSubtitle').textContent = 
-        `全校總量基準：iPad ${totalStock.iPad} 部 ｜ Mobile ${totalStock.Mobile} 部`;
-
-      const deviceSelect = document.getElementById('deviceType');
-      const selectedVal = deviceSelect.value || 'iPad';
-      deviceSelect.innerHTML = `
-        <option value="iPad">iPad</option>
-        <option value="Mobile">Mobile</option>
-      `;
-      deviceSelect.value = selectedVal;
-    }
-
-    // ================= 4. 載入教師名單 =================
-    async function loadTeachers() {
-      const select = document.getElementById('teacherSelect');
-      
-      if (isConnected && _supabase) {
-        const { data, error } = await _supabase
-          .from('teachers')
-          .select('name, is_suspended, suspended_until');
-
-        if (!error && data && data.length > 0) {
-          teachersList = data.sort((a, b) => a.name.localeCompare(b.name, 'zh-HK'));
-        }
-      }
-
-      select.innerHTML = '<option value="" disabled selected>請選擇老師姓名...</option>';
-      teachersList.forEach(teacher => {
-        const option = document.createElement('option');
-        option.value = teacher.name;
-
-        if (teacher.is_suspended) {
-          const until = teacher.suspended_until ? `至 ${teacher.suspended_until}` : '';
-          option.textContent = `⛔ ${teacher.name} (暫停借用 ${until})`.trim();
-          option.disabled = true;
-          option.classList.add('text-rose-500');
-        } else {
-          option.textContent = teacher.name;
-        }
-        select.appendChild(option);
-      });
-    }
-
-    // ================= 5. 讀取預約與計算庫存 =================
-    async function fetchAndRender() {
-      const selectedDate = document.getElementById('selectDate').value;
-      document.getElementById('displaySelectedDate').textContent = formatDateWithWeekday(selectedDate);
-
-      if (isConnected && _supabase) {
-        const { data, error } = await _supabase
-          .from('bookings')
-          .select('*')
-          .eq('date', selectedDate);
-
-        if (!error && data) {
-          currentBookings = data;
-        }
-      }
-
-      renderDashboard();
-      renderTable();
-      updateRemainingPreview();
-    }
-
-    function getRemainingStock(lesson, device) {
-      const borrowed = currentBookings
-        .filter(b => b.lesson === parseInt(lesson) && b.device_type === device)
-        .reduce((sum, b) => sum + b.quantity, 0);
-      const total = totalStock[device] || 0;
-      return Math.max(0, total - borrowed);
-    }
-
-    function updateRemainingPreview() {
-      const lesson = document.getElementById('lessonSelect').value;
-      const device = document.getElementById('deviceType').value;
-      const remaining = getRemainingStock(lesson, device);
-
-      document.getElementById('stockBadge').textContent = `(尚餘: ${remaining} 部)`;
-      const qtyInput = document.getElementById('quantity');
-      qtyInput.max = remaining;
-    }
-
-    // ================= 6. 渲染看板與清單 =================
-    function renderDashboard() {
-      const grid = document.getElementById('lessonsGrid');
-      grid.innerHTML = '';
-
-      for (let l = 1; l <= 7; l++) {
-        const remIpad = getRemainingStock(l, 'iPad');
-        const remMobile = getRemainingStock(l, 'Mobile');
-
-        const ipadColor = remIpad > 30 ? 'text-emerald-600 bg-emerald-50 border-emerald-200' : (remIpad > 0 ? 'text-amber-600 bg-amber-50 border-amber-200' : 'text-rose-600 bg-rose-50 border-rose-200');
-        const mobileColor = remMobile > 15 ? 'text-emerald-600 bg-emerald-50 border-emerald-200' : (remMobile > 0 ? 'text-amber-600 bg-amber-50 border-amber-200' : 'text-rose-600 bg-rose-50 border-rose-200');
-
-        const card = document.createElement('div');
-        card.className = "bg-slate-50 border border-slate-200 rounded-lg p-2.5 flex flex-col justify-between shadow-xs";
-        card.innerHTML = `
-          <div class="text-xs font-bold text-slate-700 mb-1.5 pb-1 border-b border-slate-200 flex justify-between items-center">
-            <span>${LESSON_NAMES[l]}</span>
-          </div>
-          <div class="space-y-1 text-[11px]">
-            <div class="flex items-center justify-between px-1.5 py-0.5 rounded border ${ipadColor}">
-              <span class="font-medium">iPad</span>
-              <span class="font-bold">${remIpad} / ${totalStock.iPad}</span>
-            </div>
-            <div class="flex items-center justify-between px-1.5 py-0.5 rounded border ${mobileColor}">
-              <span class="font-medium">Mobile</span>
-              <span class="font-bold">${remMobile} / ${totalStock.Mobile}</span>
-            </div>
-          </div>
-        `;
-        grid.appendChild(card);
-      }
-    }
-
-    function renderTable() {
-      const tbody = document.getElementById('bookingsTableBody');
-      const emptyMsg = document.getElementById('emptyMessage');
-      const countBadge = document.getElementById('recordCount');
-
-      countBadge.textContent = `共 ${currentBookings.length} 筆記錄`;
-      tbody.innerHTML = '';
-
-      if (currentBookings.length === 0) {
-        emptyMsg.classList.remove('hidden');
-        return;
-      }
-      emptyMsg.classList.add('hidden');
-
-      currentBookings.sort((a, b) => a.lesson - b.lesson);
-      
-      currentBookings.forEach(item => {
-        const isAdmin = currentUser && checkIsAdmin(currentUser.email);
-        const isOwner = currentUser && (item.user_email && currentUser.email === item.user_email);
-        const canDelete = isAdmin || isOwner;
-
-        const tr = document.createElement('tr');
-        tr.className = "hover:bg-slate-50/80 transition";
-        tr.innerHTML = `
-          <td class="py-2.5 px-3 font-semibold text-slate-800">${LESSON_NAMES[item.lesson]}</td>
-          <td class="py-2.5 px-3 font-medium text-indigo-700">${item.teacher_name}</td>
-          <td class="py-2.5 px-3 text-slate-700 font-semibold">
-            <span class="${item.device_type === 'iPad' ? 'text-blue-600' : 'text-purple-600'}">
-              ${item.device_type} × ${item.quantity}
-            </span>
-          </td>
-          <td class="py-2.5 px-3">${item.class} (${item.subject})</td>
-          <td class="py-2.5 px-3">${item.room}</td>
-          <td class="py-2.5 px-3 text-center">
-            ${canDelete ? `
-              <button onclick="deleteBooking('${item.id}', '${item.teacher_name}')" class="text-rose-500 hover:text-rose-700 p-1 transition" title="取消登記">
-                <i class="fa-solid fa-trash-can"></i>
-              </button>
-            ` : `
-              <span class="text-slate-300 text-[11px] cursor-not-allowed" title="非本人登記，無權取消">
-                <i class="fa-solid fa-lock"></i>
-              </span>
-            `}
-          </td>
-        `;
-        tbody.appendChild(tr);
-      });
-    }
-
-    // ================= 7. 提交借用表單 =================
-    async function handleFormSubmit(event) {
-      event.preventDefault();
-
-      if (!currentUser) {
-        alert('請先點擊右上角使用學校 Google 帳號登入後再進行借用！');
-        loginWithGoogle();
-        return;
-      }
-
-      const submitBtn = document.getElementById('submitBtn');
-      submitBtn.disabled = true;
-      submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 正在儲存...';
-
-      const date = document.getElementById('selectDate').value;
-      const lesson = parseInt(document.getElementById('lessonSelect').value);
-      const teacher_name = document.getElementById('teacherSelect').value;
-      const device_type = document.getElementById('deviceType').value;
-      const quantity = parseInt(document.getElementById('quantity').value);
-      const className = document.getElementById('className').value;
-      const subject = document.getElementById('subject').value;
-      const room = document.getElementById('room').value;
-      const remarks = document.getElementById('remarks').value.trim();
-
-      if (!teacher_name) {
-        alert('請先選擇借用老師！');
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
-        return;
-      }
-
-      const teacherRecord = teachersList.find(t => t.name === teacher_name);
-      if (teacherRecord && teacherRecord.is_suspended) {
-        alert(`❌ 借用失敗：${teacher_name} 老師目前處於停止借用期！`);
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
-        return;
-      }
-
-      const remaining = getRemainingStock(lesson, device_type);
-      if (quantity > remaining) {
-        alert(`❌ 借用失敗！該節 ${device_type} 尚餘數量僅剩 ${remaining} 部，無法借出 ${quantity} 部。`);
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
-        return;
-      }
-
-      if (isConnected && _supabase) {
-        const { error } = await _supabase.from('bookings').insert([{
-          date,
-          lesson,
-          teacher_name,
-          device_type,
-          quantity,
-          class: className,
-          subject,
-          room,
-          remarks,
-          status: 'pending',
-          user_email: currentUser.email
-        }]);
-
-        if (error) {
-          alert('登記失敗：' + error.message);
-        } else {
-          alert(`✅ 借用成功！已為 ${teacher_name} 登記 ${LESSON_NAMES[lesson]} 的 ${device_type} (${quantity} 部)。`);
-          document.getElementById('bookingForm').reset();
-          fetchAndRender();
-        }
-      }
-
-      submitBtn.disabled = false;
-      submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
-    }
-
-    // ================= 8. 取消借用 =================
-    async function deleteBooking(id, teacherName) {
-      if (!currentUser) {
-        alert('請先登入！');
-        return;
-      }
-
-      if (!confirm(`確定要取消 ${teacherName} 的此筆借用記錄嗎？釋出的數量將即時回補。`)) return;
-
-      if (isConnected && _supabase) {
-        const { error } = await _supabase.from('bookings').delete().eq('id', id);
-        if (error) {
-          alert('刪除失敗：' + error.message);
-        } else {
-          fetchAndRender();
-        }
-      }
-    }
-  </script>
-</body>
-</html>
+ 

@@ -298,8 +298,16 @@
     const SUPABASE_URL = 'https://gvysbmflwfidmifwepxz.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2eXNibWZsd2ZpZG1pZndlcHh6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkyNzM4OTEsImV4cCI6MjEwNDg0OTg5MX0.7W8fBnbmZ6nOWpZohPvo_zCprZ7Ef0jvbG11iJrywrU';
     
-    // 管理員白名單
-    const ADMIN_EMAILS = ['ykpoon@hkrsstpss.edu.hk'];
+   // ✅ 改為向 Supabase admins 資料表動態查詢：
+async function checkIsAdmin(email) {
+  if (!email || !isConnected || !_supabase) return false;
+  const { data, error } = await _supabase
+    .from('admins')
+    .select('email')
+    .ilike('email', email.trim()); // 忽略大小寫比對
+  return data && data.length > 0;
+}
+
 
     // 建立 Supabase Client
     const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);

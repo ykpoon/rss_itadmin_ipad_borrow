@@ -30,6 +30,8 @@
       
       <!-- 右側：日期選擇、管理員後台跳轉按鈕、Google 登入狀態 -->
       <div class="flex items-center space-x-3">
+        
+        <!-- 查詢日期 -->
         <div class="flex items-center space-x-2 bg-indigo-800/60 px-3 py-1.5 rounded-lg border border-indigo-500/30">
           <i class="fa-regular fa-calendar text-indigo-300"></i>
           <label for="selectDate" class="text-xs font-medium text-indigo-200">查詢日期：</label>
@@ -69,7 +71,7 @@
         <i class="fa-solid fa-calendar-days"></i> 📝 設備預約登記
       </button>
       <button onclick="switchFrontTab('teachers-section')" id="tabBtn-teachers" class="tab-btn pb-3 px-1 text-sm flex items-center gap-2 border-b-2 border-transparent text-slate-500 hover:text-slate-700">
-        <i class="fa-solid fa-users-slash"></i> 📊 欠取統計與停借名單 (唯讀)
+        <i class="fa-solid fa-users-slash"></i> 📊 全校教師欠取統計與停借公告 (唯讀)
       </button>
     </div>
 
@@ -81,9 +83,9 @@
           <div>
             <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
               <i class="fa-solid fa-chart-pie text-indigo-600"></i>
-              各節設備剩餘量看板 (<span id="displaySelectedDate" class="text-indigo-600"></span>)
+              各節設備剩餘量看板 (<span id="displaySelectedDate" class="text-indigo-600 font-semibold"></span>)
             </h2>
-            <p id="totalStockSubtitle" class="text-xs text-slate-500 mt-0.5">全校總量基準：正在載入資料庫庫存...</p>
+            <p id="totalStockSubtitle" class="text-xs text-slate-500 mt-0.5">全校總量基準：載入中...</p>
           </div>
           <div class="flex items-center gap-4 text-xs">
             <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-emerald-500"></span> 供應充足 (>30)</span>
@@ -125,7 +127,7 @@
               <!-- 借用課節 -->
               <div>
                 <label class="block text-xs font-semibold text-slate-600 mb-1">借用課節 <span class="text-rose-500">*</span></label>
-                <select id="lessonSelect" required onchange="updateRemainingPreview()" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                <select id="lessonSelect" required onchange="updateRemainingPreview()" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white">
                   <option value="1">第 1 節 (Lesson 1)</option>
                   <option value="2">第 2 節 (Lesson 2)</option>
                   <option value="3">第 3 節 (Lesson 3)</option>
@@ -248,22 +250,22 @@
             </table>
             <div id="emptyMessage" class="hidden text-center py-12 text-slate-400">
               <i class="fa-solid fa-inbox text-3xl mb-2"></i>
-              <p class="text-sm">本日該時段暫無 any 借用記錄</p>
+              <p class="text-sm">本日該時段暫無任何借用記錄</p>
             </div>
           </div>
         </section>
       </div>
     </div>
 
-    <!-- ================= 分頁 2: 欠取統計與停借名單 (唯讀) ================= -->
-    <div id="teachers-section" class="tab-section-content hidden bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-      <div class="flex justify-between items-center border-b pb-4 mb-4">
+    <!-- ================= 分頁 2: 全校教師欠取統計與停借公告 (唯讀) ================= -->
+    <div id="teachers-section" class="tab-section-content hidden bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-4">
+      <div class="flex justify-between items-center border-b pb-4">
         <div>
           <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
             <i class="fa-solid fa-users-slash text-rose-600"></i>
-            全校教師欠取統計與停借管理 (資訊公示)
+            全校教師欠取次數統計與停借狀態 (資訊公示)
           </h2>
-          <p class="text-xs text-slate-500 mt-1">此名單每週一自動更新。累計欠取滿 2 次者，系統將自動啟動暫停借用限制。</p>
+          <p class="text-xs text-slate-500 mt-1">此名單由系統即時更新。累計欠取滿 2 次者將暫停借用權限。</p>
         </div>
         <span id="frontSuspendedCount" class="text-xs bg-rose-100 text-rose-800 px-3 py-1 rounded-full font-semibold">0 位停借中</span>
       </div>
@@ -279,7 +281,7 @@
             </tr>
           </thead>
           <tbody id="frontTeachersTableBody" class="divide-y divide-slate-100">
-            <!-- 教師名單由 JS 動態生成 -->
+            <!-- 動態生成 -->
           </tbody>
         </table>
       </div>
@@ -296,26 +298,430 @@
     const SUPABASE_URL = 'https://gvysbmflwfidmifwepxz.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2eXNibWZsd2ZpZG1pZndlcHh6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkyNzM4OTEsImV4cCI6MjEwNDg0OTg5MX0.7W8fBnbmZ6nOWpZohPvo_zCprZ7Ef0jvbG11iJrywrU';
     
+    // 管理員白名單
     const ADMIN_EMAILS = ['ykpoon@hkrsstpss.edu.hk'];
 
-    let _supabase = null;
-    let isConnected = false;
+    // 建立 Supabase Client
+    const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     let currentUser = null;
 
-    try {
-      if (window.supabase && SUPABASE_URL && SUPABASE_ANON_KEY) {
-        _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        isConnected = true;
-        console.log("✅ Supabase 資料庫連線成功！");
-      }
-    } catch (e) {
-      console.warn("⚠️ 連線失敗", e);
-    }
-
-    // 動態庫存物資總數
     let totalStock = { iPad: 150, Mobile: 55 };
-
     const LESSON_NAMES = { 1: '第 1 節', 2: '第 2 節', 3: '第 3 節', 4: '第 4 節', 5: '第 5 節', 6: '第 6 節', 7: '放學' };
     const WEEKDAY_NAMES = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
 
- 
+    let currentBookings = [];
+    let teachersList = [];
+
+    // ================= 2. 初始化 =================
+    document.addEventListener('DOMContentLoaded', async () => {
+      const dateInput = document.getElementById('selectDate');
+      dateInput.value = getTodayString();
+      dateInput.addEventListener('change', fetchAndRender);
+
+      await checkAuth();
+      await loadResources();
+      await loadTeachers();
+      fetchAndRender();
+      setupRealtime();
+    });
+
+    function getTodayString() {
+      const today = new Date();
+      return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    }
+
+    function formatDateWithWeekday(dateStr) {
+      if (!dateStr) return '';
+      const parts = dateStr.split('-');
+      const d = new Date(parts[0], parts[1] - 1, parts[2]);
+      return `${dateStr} (${WEEKDAY_NAMES[d.getDay()]})`;
+    }
+
+    function checkIsAdmin(email) {
+      return email && ADMIN_EMAILS.includes(email.toLowerCase());
+    }
+
+    // 身分認證檢查
+    async function checkAuth() {
+      const { data: { session } } = await _supabase.auth.getSession();
+      updateAuthUI(session?.user || null);
+
+      _supabase.auth.onAuthStateChange((_event, session) => {
+        updateAuthUI(session?.user || null);
+        renderTable();
+      });
+    }
+
+    function updateAuthUI(user) {
+      currentUser = user;
+      const loginBtn = document.getElementById('loginBtn');
+      const userInfo = document.getElementById('userInfo');
+      const emailDisplay = document.getElementById('userEmailDisplay');
+      const adminBadge = document.getElementById('adminBadge');
+      const adminPortalBtn = document.getElementById('adminPortalBtn');
+      const loginAlert = document.getElementById('loginRequiredAlert');
+
+      if (user) {
+        loginBtn.classList.add('hidden');
+        userInfo.classList.remove('hidden');
+        emailDisplay.textContent = user.email;
+        loginAlert.classList.add('hidden');
+
+        if (checkIsAdmin(user.email)) {
+          adminBadge.classList.remove('hidden');
+          adminPortalBtn.classList.remove('hidden');
+        } else {
+          adminBadge.classList.add('hidden');
+          adminPortalBtn.classList.add('hidden');
+        }
+      } else {
+        loginBtn.classList.remove('hidden');
+        userInfo.classList.add('hidden');
+        adminPortalBtn.classList.add('hidden');
+        loginAlert.classList.remove('hidden');
+      }
+    }
+
+    // Google 登入 (強化版，不靜默失敗)
+    async function loginWithGoogle() {
+      const { error } = await _supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          queryParams: { prompt: 'select_account' },
+          redirectTo: window.location.origin + window.location.pathname
+        }
+      });
+      if (error) {
+        alert('登入失敗：' + error.message);
+      }
+    }
+
+    async function logout() {
+      await _supabase.auth.signOut();
+      location.reload();
+    }
+
+    // 即時廣播
+    function setupRealtime() {
+      _supabase
+        .channel('public:bookings')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
+          fetchAndRender();
+        })
+        .subscribe();
+
+      _supabase
+        .channel('public:teachers')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'teachers' }, () => {
+          loadTeachers();
+        })
+        .subscribe();
+
+      _supabase
+        .channel('public:resources')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'resources' }, async () => {
+          await loadResources();
+          renderDashboard();
+          updateRemainingPreview();
+        })
+        .subscribe();
+    }
+
+    // ================= 3. 動態物資總量 =================
+    async function loadResources() {
+      const { data } = await _supabase.from('resources').select('name, total_qty');
+      if (data && data.length > 0) {
+        data.forEach(item => {
+          if (item.name === 'iPad') totalStock.iPad = item.total_qty;
+          if (item.name === 'Mobile') totalStock.Mobile = item.total_qty;
+        });
+      }
+
+      document.getElementById('totalStockSubtitle').textContent = 
+        `全校總量基準：iPad ${totalStock.iPad} 部 ｜ Mobile ${totalStock.Mobile} 部`;
+    }
+
+    // ================= 4. 載入教師名單 =================
+    async function loadTeachers() {
+      const { data } = await _supabase
+        .from('teachers')
+        .select('name, is_suspended, suspended_until, missed_count');
+
+      if (data && data.length > 0) {
+        teachersList = data.sort((a, b) => a.name.localeCompare(b.name, 'zh-HK'));
+      }
+
+      // 填入下拉選單
+      const select = document.getElementById('teacherSelect');
+      select.innerHTML = '<option value="" disabled selected>請選擇老師姓名...</option>';
+      teachersList.forEach(teacher => {
+        const option = document.createElement('option');
+        option.value = teacher.name;
+
+        if (teacher.is_suspended) {
+          const until = teacher.suspended_until ? `至 ${teacher.suspended_until}` : '';
+          option.textContent = `⛔ ${teacher.name} (暫停借用 ${until})`.trim();
+          option.disabled = true;
+          option.classList.add('text-rose-500');
+        } else {
+          option.textContent = teacher.name;
+        }
+        select.appendChild(option);
+      });
+
+      renderFrontTeachersTable();
+    }
+
+    // 渲染前台唯讀教師欠取名單
+    function renderFrontTeachersTable() {
+      const tbody = document.getElementById('frontTeachersTableBody');
+      const badge = document.getElementById('frontSuspendedCount');
+      tbody.innerHTML = '';
+
+      const sorted = [...teachersList].sort((a, b) => 
+        (b.is_suspended - a.is_suspended) || (b.missed_count - a.missed_count)
+      );
+
+      badge.textContent = `${sorted.filter(t => t.is_suspended).length} 位停借中`;
+
+      sorted.forEach(t => {
+        const tr = document.createElement('tr');
+        tr.className = t.is_suspended ? "bg-rose-50/40" : "hover:bg-slate-50";
+        tr.innerHTML = `
+          <td class="py-3 px-4 font-semibold text-slate-800">${t.name}</td>
+          <td class="py-3 px-4 font-bold ${t.missed_count > 0 ? 'text-rose-600' : 'text-slate-500'}">
+            ${t.missed_count} 次
+          </td>
+          <td class="py-3 px-4">
+            ${t.is_suspended 
+              ? '<span class="px-2 py-0.5 bg-rose-100 text-rose-700 rounded font-bold">⛔ 暫停借用中</span>' 
+              : '<span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded font-medium">正常</span>'}
+          </td>
+          <td class="py-3 px-4 font-mono text-slate-500 text-[11px]">${t.suspended_until || '--'}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // ================= 5. 讀取預約與計算庫存 =================
+    async function fetchAndRender() {
+      const selectedDate = document.getElementById('selectDate').value;
+      document.getElementById('displaySelectedDate').textContent = formatDateWithWeekday(selectedDate);
+
+      const { data } = await _supabase
+        .from('bookings')
+        .select('*')
+        .eq('date', selectedDate);
+
+      currentBookings = data || [];
+      renderDashboard();
+      renderTable();
+      updateRemainingPreview();
+    }
+
+    function getRemainingStock(lesson, device) {
+      const borrowed = currentBookings
+        .filter(b => b.lesson === parseInt(lesson) && b.device_type === device)
+        .reduce((sum, b) => sum + b.quantity, 0);
+      const total = totalStock[device] || 0;
+      return Math.max(0, total - borrowed);
+    }
+
+    function updateRemainingPreview() {
+      const lesson = document.getElementById('lessonSelect').value;
+      const device = document.getElementById('deviceType').value;
+      const remaining = getRemainingStock(lesson, device);
+
+      document.getElementById('stockBadge').textContent = `(尚餘: ${remaining} 部)`;
+      document.getElementById('quantity').max = remaining;
+    }
+
+    // 前台分頁切換
+    function switchFrontTab(sectionId) {
+      document.querySelectorAll('.tab-section-content').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.tab-btn').forEach(el => {
+        el.classList.remove('border-indigo-600', 'text-indigo-600', 'font-bold');
+        el.classList.add('border-transparent', 'text-slate-500');
+      });
+
+      document.getElementById(sectionId).classList.remove('hidden');
+      const activeBtn = document.getElementById(`tabBtn-${sectionId.replace('-section', '')}`);
+      activeBtn.classList.add('border-indigo-600', 'text-indigo-600', 'font-bold');
+      activeBtn.classList.remove('border-transparent', 'text-slate-500');
+    }
+
+    // 渲染看板
+    function renderDashboard() {
+      const grid = document.getElementById('lessonsGrid');
+      grid.innerHTML = '';
+
+      for (let l = 1; l <= 7; l++) {
+        const remIpad = getRemainingStock(l, 'iPad');
+        const remMobile = getRemainingStock(l, 'Mobile');
+
+        const ipadColor = remIpad > 30 ? 'text-emerald-600 bg-emerald-50 border-emerald-200' : (remIpad > 0 ? 'text-amber-600 bg-amber-50 border-amber-200' : 'text-rose-600 bg-rose-50 border-rose-200');
+        const mobileColor = remMobile > 15 ? 'text-emerald-600 bg-emerald-50 border-emerald-200' : (remMobile > 0 ? 'text-amber-600 bg-amber-50 border-amber-200' : 'text-rose-600 bg-rose-50 border-rose-200');
+
+        const card = document.createElement('div');
+        card.className = "bg-slate-50 border border-slate-200 rounded-lg p-2.5 flex flex-col justify-between shadow-xs";
+        card.innerHTML = `
+          <div class="text-xs font-bold text-slate-700 mb-1.5 pb-1 border-b border-slate-200 flex justify-between items-center">
+            <span>${LESSON_NAMES[l]}</span>
+          </div>
+          <div class="space-y-1 text-[11px]">
+            <div class="flex items-center justify-between px-1.5 py-0.5 rounded border ${ipadColor}">
+              <span class="font-medium">iPad</span>
+              <span class="font-bold">${remIpad} / ${totalStock.iPad}</span>
+            </div>
+            <div class="flex items-center justify-between px-1.5 py-0.5 rounded border ${mobileColor}">
+              <span class="font-medium">Mobile</span>
+              <span class="font-bold">${remMobile} / ${totalStock.Mobile}</span>
+            </div>
+          </div>
+        `;
+        grid.appendChild(card);
+      }
+    }
+
+    // 渲染清單
+    function renderTable() {
+      const tbody = document.getElementById('bookingsTableBody');
+      const emptyMsg = document.getElementById('emptyMessage');
+      const countBadge = document.getElementById('recordCount');
+
+      countBadge.textContent = `共 ${currentBookings.length} 筆記錄`;
+      tbody.innerHTML = '';
+
+      if (currentBookings.length === 0) {
+        emptyMsg.classList.remove('hidden');
+        return;
+      }
+      emptyMsg.classList.add('hidden');
+
+      currentBookings.sort((a, b) => a.lesson - b.lesson);
+      
+      currentBookings.forEach(item => {
+        const isAdmin = currentUser && checkIsAdmin(currentUser.email);
+        const isOwner = currentUser && (item.user_email && currentUser.email === item.user_email);
+        const canDelete = isAdmin || isOwner;
+
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-50/80 transition";
+        tr.innerHTML = `
+          <td class="py-2.5 px-3 font-semibold text-slate-800">${LESSON_NAMES[item.lesson]}</td>
+          <td class="py-2.5 px-3 font-medium text-indigo-700">${item.teacher_name}</td>
+          <td class="py-2.5 px-3 text-slate-700 font-semibold">
+            <span class="${item.device_type === 'iPad' ? 'text-blue-600' : 'text-purple-600'}">
+              ${item.device_type} × ${item.quantity}
+            </span>
+          </td>
+          <td class="py-2.5 px-3">${item.class} (${item.subject})</td>
+          <td class="py-2.5 px-3">${item.room}</td>
+          <td class="py-2.5 px-3 text-center">
+            ${canDelete ? `
+              <button onclick="deleteBooking('${item.id}', '${item.teacher_name}')" class="text-rose-500 hover:text-rose-700 p-1 transition" title="取消登記">
+                <i class="fa-solid fa-trash-can"></i>
+              </button>
+            ` : `
+              <span class="text-slate-300 text-[11px] cursor-not-allowed" title="非本人登記，無權取消">
+                <i class="fa-solid fa-lock"></i>
+              </span>
+            `}
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // 提交借用表單
+    async function handleFormSubmit(event) {
+      event.preventDefault();
+
+      if (!currentUser) {
+        alert('請先點擊右上角使用學校 Google 帳號登入後再進行借用！');
+        loginWithGoogle();
+        return;
+      }
+
+      const submitBtn = document.getElementById('submitBtn');
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 正在儲存...';
+
+      const date = document.getElementById('selectDate').value;
+      const lesson = parseInt(document.getElementById('lessonSelect').value);
+      const teacher_name = document.getElementById('teacherSelect').value;
+      const device_type = document.getElementById('deviceType').value;
+      const quantity = parseInt(document.getElementById('quantity').value);
+      const className = document.getElementById('className').value;
+      const subject = document.getElementById('subject').value;
+      const room = document.getElementById('room').value;
+      const remarks = document.getElementById('remarks').value.trim();
+
+      if (!teacher_name) {
+        alert('請先選擇借用老師！');
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
+        return;
+      }
+
+      const teacherRecord = teachersList.find(t => t.name === teacher_name);
+      if (teacherRecord && teacherRecord.is_suspended) {
+        alert(`❌ 借用失敗：${teacher_name} 老師目前處於停止借用期！`);
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
+        return;
+      }
+
+      const remaining = getRemainingStock(lesson, device_type);
+      if (quantity > remaining) {
+        alert(`❌ 借用失敗！該節 ${device_type} 尚餘數量僅剩 ${remaining} 部，無法借出 ${quantity} 部。`);
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
+        return;
+      }
+
+      const { error } = await _supabase.from('bookings').insert([{
+        date,
+        lesson,
+        teacher_name,
+        device_type,
+        quantity,
+        class: className,
+        subject,
+        room,
+        remarks,
+        status: 'pending',
+        user_email: currentUser.email
+      }]);
+
+      if (error) {
+        alert('登記失敗：' + error.message);
+      } else {
+        alert(`✅ 借用成功！已為 ${teacher_name} 登記 ${LESSON_NAMES[lesson]} 的 ${device_type} (${quantity} 部)。`);
+        document.getElementById('bookingForm').reset();
+        fetchAndRender();
+      }
+
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
+    }
+
+    // 取消借用
+    async function deleteBooking(id, teacherName) {
+      if (!currentUser) {
+        alert('請先登入！');
+        return;
+      }
+
+      if (!confirm(`確定要取消 ${teacherName} 的此筆借用記錄嗎？釋出的數量將即時回補。`)) return;
+
+      const { error } = await _supabase.from('bookings').delete().eq('id', id);
+      if (error) {
+        alert('刪除失敗：' + error.message);
+      } else {
+        fetchAndRender();
+      }
+    }
+  </script>
+</body>
+</html>

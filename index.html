@@ -389,43 +389,17 @@
       }
     }
 
- // 身分認證檢查 (即時監聽 OAuth 登入跳轉)
+    // 身分認證檢查 (即時監聽 OAuth 登入跳轉) (已修正錯位語法)
     async function checkAuth() {
       try {
         const { data: { session } } = await _supabase.auth.getSession();
         await updateAuthUI(session?.user || null);
 
-        // 💡 讓監聽回傳，以便初始化中 await
+        // 讓監聽回傳，以便初始化中 await
         return new Promise((resolve) => {
           _supabase.auth.onAuthStateChange(async (_event, session) => {
             await updateAuthUI(session?.user || null);
-            renderTable(     const isWaiting = item.status === 'waiting';
-        const tr = document.createElement('tr');
-        tr.className = isWaiting ? "bg-amber-50/50 hover:bg-amber-50/80 transition" : "hover:bg-slate-50/80 transition";
-        tr.innerHTML = `
-          <td class="py-2.5 px-3 font-semibold text-slate-800">${LESSON_NAMES[item.lesson]}</td>
-          <td class="py-2.5 px-3 font-medium text-indigo-700">${item.teacher_name}</td>
-          <td class="py-2.5 px-3 text-slate-700 font-semibold">
-            <span class="${item.device_type === 'iPad' ? 'text-blue-600' : 'text-purple-600'}">
-              ${item.device_type} × ${item.quantity}
-            </span>
-            <!-- 💡 新增：候補狀態標籤 -->
-            ${isWaiting ? '<span class="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-800 text-[10px] rounded font-bold">候補中</span>' : ''}
-          </td>
-          <td class="py-2.5 px-3">${item.class} (${item.subject})</td>
-          <td class="py-2.5 px-3">${item.room}</td>
-          <td class="py-2.5 px-3 text-center">
-            ${canDelete ? `
-              <button onclick="deleteBooking('${item.id}', '${item.teacher_name}')" class="text-rose-500 hover:text-rose-700 p-1 transition" title="取消登記">
-                <i class="fa-solid fa-trash-can"></i>
-              </button>
-            ` : `
-              <span class="text-slate-300 text-[11px] cursor-not-allowed" title="非本人登記，無權取消">
-                <i class="fa-solid fa-lock"></i>
-              </span>
-            `}
-          </td>
-        `;);
+            renderTable(); // 💡 乾淨的重新渲染表格
             resolve();
           });
           resolve();
@@ -434,6 +408,7 @@
         console.error("Auth 初始化錯誤:", e);
       }
     }
+
 
     async function updateAuthUI(user) {
       currentUser = user;
@@ -722,6 +697,7 @@
       }
     }
 
+      // ================= 7. 渲染當日借用詳情清單 (支援 Waiting List) =================
     function renderTable() {
       const tbody = document.getElementById('bookingsTableBody');
       const emptyMsg = document.getElementById('emptyMessage');
@@ -740,9 +716,11 @@
       currentBookings.forEach(item => {
         const isOwner = currentUser && (item.user_email && currentUser.email === item.user_email);
         const canDelete = isCurrentUserAdmin || isOwner;
+        const isWaiting = item.status === 'waiting';
 
         const tr = document.createElement('tr');
-        tr.className = "hover:bg-slate-50/80 transition";
+        // 💡 候補的預約背景色會微調成淡黃色
+        tr.className = isWaiting ? "bg-amber-50/50 hover:bg-amber-50/80 transition" : "hover:bg-slate-50/80 transition";
         tr.innerHTML = `
           <td class="py-2.5 px-3 font-semibold text-slate-800">${LESSON_NAMES[item.lesson]}</td>
           <td class="py-2.5 px-3 font-medium text-indigo-700">${item.teacher_name}</td>
@@ -750,6 +728,8 @@
             <span class="${item.device_type === 'iPad' ? 'text-blue-600' : 'text-purple-600'}">
               ${item.device_type} × ${item.quantity}
             </span>
+            <!-- 💡 新增：前台候補黃色小標籤 -->
+            ${isWaiting ? '<span class="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-800 text-[10px] rounded-sm font-bold border border-amber-200">候補中</span>' : ''}
           </td>
           <td class="py-2.5 px-3">${item.class} (${item.subject})</td>
           <td class="py-2.5 px-3">${item.room}</td>
@@ -769,7 +749,8 @@
       });
     }
 
-    // ================= 7. 提交借用表單 =================
+
+  // ================= 8. 提交借用表單 (支援 Waiting List & 移除重複塞單) =================
     async function handleFormSubmit(event) {
       event.preventDefault();
 
@@ -808,7 +789,7 @@
         return;
       }
 
-       const remaining = getRemainingStock(lesson, device_type);
+      const remaining = getRemainingStock(lesson, device_type);
       let isWaiting = false; // 💡 用於標記是否為候補狀態
 
       if (quantity > remaining) {
@@ -856,25 +837,10 @@
         }
       }
 
-      if (_supabase) {
-        const { error } = await _supabase.from('bookings').insert([{
-          date, lesson, teacher_name, device_type, quantity, class: className, subject, room, remarks, status: 'pending', user_email: currentUser.email
-        }]);
-
-        if (error) {
-          alert('登記失敗：' + error.message);
-        } else {
-          alert(`✅ 借用成功！已為 ${teacher_name} 登記 ${LESSON_NAMES[lesson]} 的 ${device_type} (${quantity} 部)。`);
-          document.getElementById('bookingForm').reset();
-          fetchAndRender();
-        }
-      }
-
       submitBtn.disabled = false;
       submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
     }
-
-    // ================= 8. 取消借用 =================
+    // ================= 9. 取消借用 =================
     async function deleteBooking(id, teacherName) {
       if (!currentUser) {
         alert('請先登入！');

@@ -74,10 +74,13 @@
   <!-- 主要內容區 -->
   <main class="max-w-7xl mx-auto px-4 py-6 flex-1 w-full space-y-6">
 
-    <!-- 前台分頁導覽 Tab -->
+     <!-- 前台分頁導覽 Tab (已新增月曆按鈕) -->
     <div class="flex border-b border-slate-200 space-x-6">
       <button onclick="switchFrontTab('booking-section')" id="tabBtn-booking" class="tab-btn active pb-3 px-1 text-sm flex items-center gap-2 border-b-2">
         <i class="fa-solid fa-calendar-days"></i> 📝 設備預約登記
+      </button>
+      <button onclick="switchFrontTab('calendar-section')" id="tabBtn-calendar" class="tab-btn pb-3 px-1 text-sm flex items-center gap-2 border-b-2 border-transparent text-slate-500 hover:text-slate-700">
+        <i class="fa-solid fa-calendar-week"></i> 📅 當月借用概況月曆
       </button>
       <button onclick="switchFrontTab('teachers-section')" id="tabBtn-teachers" class="tab-btn pb-3 px-1 text-sm flex items-center gap-2 border-b-2 border-transparent text-slate-500 hover:text-slate-700">
         <i class="fa-solid fa-users-slash"></i> 📊 全校教師欠取統計與停借公告 (唯讀)
@@ -314,7 +317,38 @@
         </table>
       </div>
     </div>
+<!-- ================= 分頁 3: 當月借用概況月曆 (視覺化月網格) ================= -->
+    <div id="calendar-section" class="tab-section-content hidden bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-4">
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b pb-4 gap-3">
+        <div>
+          <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+            <i class="fa-solid fa-calendar-week text-indigo-600"></i>
+            全校當月設備借用分佈月曆
+          </h2>
+          <p class="text-xs text-slate-500 mt-1">此月曆即時顯示當月每日的設備總借出量。點擊任何日期，可直接快速跳轉查詢該日預約詳情。</p>
+        </div>
+        <!-- 月份切換器 -->
+        <div class="flex items-center space-x-2 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100">
+          <button onclick="changeMonth(-1)" class="text-indigo-600 hover:text-indigo-800 font-bold px-1.5"><i class="fa-solid fa-chevron-left"></i></button>
+          <span id="calendarMonthTitle" class="text-sm font-bold text-indigo-900 min-w-[100px] text-center">2026 年 09 月</span>
+          <button onclick="changeMonth(1)" class="text-indigo-600 hover:text-indigo-800 font-bold px-1.5"><i class="fa-solid fa-chevron-right"></i></button>
+        </div>
+      </div>
 
+      <!-- 月曆主網格 -->
+      <div class="overflow-x-auto">
+        <div class="min-w-[700px]">
+          <!-- 星期標頭 -->
+          <div class="grid grid-cols-7 gap-2 text-center text-xs font-bold text-slate-500 pb-2 border-b">
+            <div>星期日</div><div>星期一</div><div>星期二</div><div>星期三</div><div>星期四</div><div>星期五</div><div>星期六</div>
+          </div>
+          <!-- 日期格子 -->
+          <div id="calendarGrid" class="grid grid-cols-7 gap-2 mt-2">
+            <!-- 由 JS 動態渲染格子 -->
+          </div>
+        </div>
+      </div>
+    </div>
   </main>
 
   <footer class="bg-white border-t border-slate-200 py-3 text-center text-xs text-slate-500">
@@ -345,17 +379,11 @@
       dateInput.addEventListener('change', fetchAndRender);
 
       try {
-        // 1. 先確認與監聽登入身分 (防止 RLS 判定因非同步而錯亂)
         await checkAuth();
-        
-        // 2. 嚴格依序載入基礎資料庫設定
-        await loadResources(); // 💡 確保 resources 一定讀取完畢並成功給予 totalStock 值
-        await loadTeachers();  // 💡 確保教師名單也載入完畢
-        
-        // 3. 最後才去載入預約並渲染看板 (這時 totalStock 100% 有值，不會出現讀取不了的情況)
+        await loadResources(); 
+        await loadTeachers();  
+        await fetchMonthlyData(); // 💡 初始化載入月曆數據
         await fetchAndRender();
-        
-        // 4. 開啟即時監聽
         setupRealtime();
       } catch (err) {
         console.error("初始化載入失敗:", err);
@@ -580,8 +608,10 @@
         .channel('public:bookings')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
           fetchAndRender();
+          fetchMonthlyData(); // 💡 即時重繪月曆數據
         })
         .subscribe();
+
 
       _supabase
         .channel('public:teachers')
@@ -672,6 +702,103 @@
       activeBtn.classList.add('border-indigo-600', 'text-indigo-600', 'font-bold');
       activeBtn.classList.remove('border-transparent', 'text-slate-500');
     }
+
+        // ================= 視覺化月曆邏輯 =================
+    let calendarDate = new Date(); // 紀錄月曆當前顯示的年月
+    let monthlyBookings = [];      // 儲存當月所有的借用記錄以便統計
+
+    // 切換月份
+    async function changeMonth(offset) {
+      calendarDate.setMonth(calendarDate.getMonth() + offset);
+      await fetchMonthlyData();
+    }
+
+    // 獲取當月的所有預約記錄 (用於月曆摘要)
+    async function fetchMonthlyData() {
+      const year = calendarDate.getFullYear();
+      const month = calendarDate.getMonth();
+      
+      // 當月第一天與最後一天的 YYYY-MM-DD
+      const firstDayStr = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+      const lastDay = new Date(year, month + 1, 0).getDate();
+      const lastDayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+      document.getElementById('calendarMonthTitle').textContent = `${year} 年 ${String(month + 1).padStart(2, '0')} 月`;
+
+      try {
+        const { data, error } = await _supabase
+          .from('bookings')
+          .select('*')
+          .gte('date', firstDayStr)
+          .lte('date', lastDayStr);
+
+        if (!error && data) {
+          monthlyBookings = data;
+        }
+      } catch (e) {
+        console.warn("載入月曆數據失敗", e);
+      }
+      renderCalendar();
+    }
+
+    // 渲染日曆網格
+    function renderCalendar() {
+      const grid = document.getElementById('calendarGrid');
+      grid.innerHTML = '';
+
+      const year = calendarDate.getFullYear();
+      const month = calendarDate.getMonth();
+
+      const firstDayIndex = new Date(year, month, 1).getDay(); // 獲取第一天是星期幾
+      const totalDays = new Date(year, month + 1, 0).getDate(); // 獲取當月共有幾天
+
+      // 1. 填充上個月的空白格子
+      for (let i = 0; i < firstDayIndex; i++) {
+        const empty = document.createElement('div');
+        empty.className = "bg-slate-50 border border-slate-100 rounded-lg p-2 h-20 opacity-35";
+        grid.appendChild(empty);
+      }
+
+      // 2. 動態生成當月的日期格子
+      for (let day = 1; day <= totalDays; day++) {
+        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        
+        // 篩選當天這兩類設備的非候補借出總數
+        const dayBookings = monthlyBookings.filter(b => b.date === dateStr && b.status !== 'returned' && !(b.remarks && b.remarks.includes('[候補]')));
+        
+        const ipadBorrowed = dayBookings.filter(b => b.device_type === 'iPad').reduce((sum, b) => sum + b.quantity, 0);
+        const mobileBorrowed = dayBookings.filter(b => b.device_type === 'Mobile').reduce((sum, b) => sum + b.quantity, 0);
+
+        const card = document.createElement('div');
+        // 點擊卡片能快速跳轉日期查詢
+        card.onclick = () => {
+          document.getElementById('selectDate').value = dateStr;
+          fetchAndRender();
+          switchFrontTab('booking-section'); // 自動跳回預約登記
+        };
+
+        // 判斷當天是否有借出，給予背景高亮
+        const hasBorrowed = ipadBorrowed > 0 || mobileBorrowed > 0;
+        card.className = `border rounded-lg p-2 h-24 flex flex-col justify-between cursor-pointer transition hover:border-indigo-500 hover:shadow-xs ${hasBorrowed ? 'bg-indigo-50/20 border-indigo-100' : 'bg-white border-slate-200'}`;
+
+        // 當天是否為選取的當前查詢日期
+        const isSelected = (document.getElementById('selectDate').value === dateStr);
+        if (isSelected) card.className += " ring-2 ring-indigo-600 border-transparent bg-indigo-50/50";
+
+        card.innerHTML = `
+          <div class="flex justify-between items-center">
+            <span class="text-xs font-bold ${isSelected ? 'text-indigo-700' : 'text-slate-700'}">${day}</span>
+            ${hasBorrowed ? `<span class="w-1.5 h-1.5 rounded-full bg-indigo-600"></span>` : ''}
+          </div>
+          <div class="space-y-1 text-[10px]">
+            ${ipadBorrowed > 0 ? `<div class="text-blue-600 font-semibold truncate">📱 iPad: ${ipadBorrowed}部</div>` : ''}
+            ${mobileBorrowed > 0 ? `<div class="text-purple-600 font-semibold truncate">🔋 Mob: ${mobileBorrowed}部</div>` : ''}
+          </div>
+        `;
+        grid.appendChild(card);
+      }
+    }
+
 
     function renderDashboard() {
       const grid = document.getElementById('lessonsGrid');

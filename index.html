@@ -114,12 +114,19 @@
             </h2>
             <p id="totalStockSubtitle" class="text-xs text-slate-500 font-medium mt-1">載入庫存中...</p>
           </div>
-          <div class="flex items-center gap-4 text-xs font-bold">
-            <span class="flex items-center gap-1.5 text-slate-600"><span class="w-2.5 h-2.5 rounded-full bg-teal-400"></span> 供應充足</span>
-            <span class="flex items-center gap-1.5 text-slate-600"><span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span> 緊張</span>
-            <span class="flex items-center gap-1.5 text-slate-600"><span class="w-2.5 h-2.5 rounded-full bg-rose-400"></span> 額滿</span>
+                   <!-- 💡 已修正：狀態燈文字說明調大，並準確描述「一半以上」與「一半以下」的邏輯 -->
+          <div class="flex flex-wrap items-center gap-4 text-xs font-extrabold">
+            <span class="flex items-center gap-1.5 text-slate-600">
+              <span class="w-2.5 h-2.5 rounded-full bg-teal-400 shadow-sm"></span> 供應充足 (剩餘一半以上)
+            </span>
+            <span class="flex items-center gap-1.5 text-slate-600">
+              <span class="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-sm"></span> 緊張 (剩餘一半或以下)
+            </span>
+            <span class="flex items-center gap-1.5 text-slate-600">
+              <span class="w-2.5 h-2.5 rounded-full bg-rose-400 shadow-sm"></span> 額滿 (0 部)
+            </span>
           </div>
-        </div>
+
 
         <div id="lessonsGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-4">
           <!-- 課節卡片由 JS 動態生成 -->

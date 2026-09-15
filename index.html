@@ -491,8 +491,12 @@
       updateRemainingPreview();
     }
 
-    // ================= 4. 載入教師名單 =================
+      // ================= 4. 載入教師名單 (優化：動態判斷停借截止日期) =================
     async function loadTeachers() {
+      // 💡 獲取當前用戶在前台選取的查詢日期 (格式: YYYY-MM-DD)
+      const selectedDateInput = document.getElementById('selectDate');
+      const queryDateStr = selectedDateInput ? selectedDateInput.value : getTodayString();
+
       try {
         const { data, error } = await _supabase
           .from('teachers')
@@ -507,16 +511,31 @@
 
       const select = document.getElementById('teacherSelect');
       select.innerHTML = '<option value="" disabled selected>請選擇老師姓名...</option>';
+      
       teachersList.forEach(teacher => {
         const option = document.createElement('option');
         option.value = teacher.name;
 
+        // 💡 核心邏輯：判斷該老師在「查詢當天」是否依然處於停借狀態
+        let currentlySuspended = false;
         if (teacher.is_suspended) {
+          if (teacher.suspended_until) {
+            // 比對選取日期與停借截止日期 (字串比對 YYYY-MM-DD 即可)
+            if (queryDateStr <= teacher.suspended_until) {
+              currentlySuspended = true; // 仍在停借期內
+            }
+          } else {
+            currentlySuspended = true; // 沒有設定截止日期，代表永久停借
+          }
+        }
+
+        if (currentlySuspended) {
           const until = teacher.suspended_until ? `至 ${teacher.suspended_until}` : '';
           option.textContent = `⛔ ${teacher.name} (暫停借用 ${until})`.trim();
           option.disabled = true;
           option.classList.add('text-rose-500');
         } else {
+          // 💡 若已過期，選單中顯示為正常（移除 ⛔ 符號並允許點選）
           option.textContent = teacher.name;
         }
         select.appendChild(option);

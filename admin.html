@@ -165,31 +165,99 @@
       </div>
     </section>
 
-    <!-- ================= 頁籤 3：全校物資總量設定 ================= -->
-    <section id="tab-resources" class="tab-content hidden max-w-xl mx-auto">
-      <div class="bg-white p-6 rounded-xl shadow-xs border border-slate-200 space-y-5">
-        <div>
-          <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
-            <i class="fa-solid fa-cubes text-indigo-600"></i> 物資總數量直接調配
-          </h3>
-          <p class="text-xs text-slate-500 mt-1">此處修改後，前台預約系統各節庫存基準將會即時連動生效。</p>
+      <!-- ================= 頁籤 3：全校物資總量設定 (已整合每日數量調節) ================= -->
+    <section id="tab-resources" class="tab-content hidden max-w-4xl mx-auto space-y-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        <!-- 左側：全校基準總量直接調配 -->
+        <div class="bg-white p-6 rounded-xl shadow-xs border border-slate-200 space-y-5 h-fit">
+          <div>
+            <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+              <i class="fa-solid fa-cubes text-indigo-600"></i>
+              全校物資基準總數
+            </h3>
+            <p class="text-xs text-slate-500 mt-1">此處為平時的預設庫存，修改後前台各節庫存基準將即時生效。</p>
+          </div>
+
+          <form onsubmit="updateResourcesStock(event)" class="space-y-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">全校 iPad 基準總數 (部)</label>
+              <input type="number" id="adminIpadStock" min="0" required class="w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-500 font-bold text-indigo-700">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">全校 Mobile 基準總數 (部)</label>
+              <input type="number" id="adminMobileStock" min="0" required class="w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-500 font-bold text-purple-700">
+            </div>
+            <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold py-2.5 rounded-lg shadow-sm transition">
+              <i class="fa-solid fa-floppy-disk mr-1"></i> 儲存並即時套用全校
+            </button>
+          </form>
         </div>
 
-        <form onsubmit="updateResourcesStock(event)" class="space-y-4">
+        <!-- 右側：特定日期可用量調節面板 -->
+        <div class="bg-white p-6 rounded-xl shadow-xs border border-slate-200 space-y-5">
           <div>
-            <label class="block text-xs font-semibold text-slate-700 mb-1">全校 iPad 基準總數 (部)</label>
-            <input type="number" id="adminIpadStock" min="1" required class="w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-500 font-bold text-indigo-700">
+            <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+              <i class="fa-solid fa-calendar-minus text-amber-500"></i>
+              特定日期可用數量調節
+            </h3>
+            <p class="text-xs text-slate-500 mt-1">例如因應活動預先鎖機，可將該天的可用數量調低。</p>
           </div>
-          <div>
-            <label class="block text-xs font-semibold text-slate-700 mb-1">全校 Mobile 基準總數 (部)</label>
-            <input type="number" id="adminMobileStock" min="1" required class="w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-500 font-bold text-purple-700">
+
+          <form onsubmit="saveDailyAdjustment(event)" class="space-y-3 bg-slate-50 p-3.5 rounded-lg border border-slate-200">
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 mb-1">選擇日期</label>
+                <input type="date" id="adjustDate" required class="w-full px-2.5 py-1.5 text-xs border rounded-lg focus:ring-2 focus:ring-indigo-500">
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 mb-1">設備種類</label>
+                <select id="adjustDevice" required class="w-full px-2.5 py-1.5 text-xs border rounded-lg bg-white">
+                  <option value="iPad">iPad</option>
+                  <option value="Mobile">Mobile</option>
+                </select>
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 mb-1">該天可用總量 (部)</label>
+                <input type="number" id="adjustQty" min="0" required placeholder="如: 10" class="w-full px-2.5 py-1.5 text-xs border rounded-lg">
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-600 mb-1">調整原因 (備註)</label>
+                <input type="text" id="adjustReason" placeholder="如: 學校開放日預留" class="w-full px-2.5 py-1.5 text-xs border rounded-lg">
+              </div>
+            </div>
+            <button type="submit" class="w-full bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold py-2 rounded-lg transition">
+              <i class="fa-solid fa-plus-circle mr-1"></i> 設定該日特別庫存
+            </button>
+          </form>
+
+          <!-- 列表顯示 -->
+          <div class="space-y-2">
+            <h4 class="text-xs font-bold text-slate-700">🛠️ 已設定的特定日期調節：</h4>
+            <div class="overflow-y-auto max-h-[180px] border border-slate-100 rounded-lg">
+              <table class="w-full text-[11px] text-left text-slate-600">
+                <thead class="bg-slate-100 text-slate-700 font-semibold sticky top-0">
+                  <tr>
+                    <th class="py-1.5 px-2">日期</th>
+                    <th class="py-1.5 px-2">設備</th>
+                    <th class="py-1.5 px-2">調節後數量</th>
+                    <th class="py-1.5 px-2">原因</th>
+                    <th class="py-1.5 px-2 text-center">操作</th>
+                  </tr>
+                </thead>
+                <tbody id="dailyAdjustmentsTable" class="divide-y divide-slate-100">
+                  <!-- JS 動態生成 -->
+                </tbody>
+              </table>
+            </div>
           </div>
-          <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold py-2.5 rounded-lg shadow-sm transition">
-            <i class="fa-solid fa-floppy-disk mr-1"></i> 儲存並即時套用全校
-          </button>
-        </form>
+        </div>
+
       </div>
     </section>
+
 
   </main>
 

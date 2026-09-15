@@ -38,7 +38,7 @@
           <input type="date" id="selectDate" class="bg-transparent text-white text-sm font-semibold focus:outline-none cursor-pointer">
         </div>
 
-        <!-- 管理員專屬跳轉按鈕 (預設隱藏) -->
+        <!-- 管理員專屬跳轉按鈕 (向資料庫 admins 表確認後自動顯示) -->
         <a id="adminPortalBtn" href="admin.html" class="hidden bg-amber-400 hover:bg-amber-300 text-amber-950 font-bold text-xs px-3 py-2 rounded-lg shadow-sm flex items-center gap-1.5 transition border border-amber-500">
           <i class="fa-solid fa-screwdriver-wrench"></i> 進入 IT 後台
         </a>
@@ -85,7 +85,7 @@
               <i class="fa-solid fa-chart-pie text-indigo-600"></i>
               各節設備剩餘量看板 (<span id="displaySelectedDate" class="text-indigo-600 font-semibold"></span>)
             </h2>
-            <p id="totalStockSubtitle" class="text-xs text-slate-500 mt-0.5">全校總量基準：載入中...</p>
+            <p id="totalStockSubtitle" class="text-xs text-slate-500 mt-0.5">全校總量基準：正在載入資料庫庫存...</p>
           </div>
           <div class="flex items-center gap-4 text-xs">
             <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-emerald-500"></span> 供應充足 (>30)</span>
@@ -298,20 +298,19 @@
     const SUPABASE_URL = 'https://gvysbmflwfidmifwepxz.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2eXNibWZsd2ZpZG1pZndlcHh6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkyNzM4OTEsImV4cCI6MjEwNDg0OTg5MX0.7W8fBnbmZ6nOWpZohPvo_zCprZ7Ef0jvbG11iJrywrU';
     
-   // ✅ 改為向 Supabase admins 資料表動態查詢：
-async function checkIsAdmin(email) {
-  if (!email || !isConnected || !_supabase) return false;
-  const { data, error } = await _supabase
-    .from('admins')
-    .select('email')
-    .ilike('email', email.trim()); // 忽略大小寫比對
-  return data && data.length > 0;
-}
-
-
-    // 建立 Supabase Client
-    const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    let _supabase = null;
+    let isConnected = false;
     let currentUser = null;
+    let isCurrentUserAdmin = false; // 是否具備管理員權限
+
+    try {
+      if (window.supabase && SUPABASE_URL && SUPABASE_ANON_KEY) {
+        _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        isConnected = true;
+      }
+    } catch (e) {
+      console.warn("⚠️ 連線失敗", e);
+    }
 
     let totalStock = { iPad: 150, Mobile: 55 };
     const LESSON_NAMES = { 1: '第 1 節', 2: '第 2 節', 3: '第 3 節', 4: '第 4 節', 5: '第 5 節', 6: '第 6 節', 7: '放學' };
@@ -320,15 +319,17 @@ async function checkIsAdmin(email) {
     let currentBookings = [];
     let teachersList = [];
 
-    // ================= 2. 初始化 =================
+    // ================= 2. 頁面初始化與登入監聽 =================
     document.addEventListener('DOMContentLoaded', async () => {
       const dateInput = document.getElementById('selectDate');
       dateInput.value = getTodayString();
       dateInput.addEventListener('change', fetchAndRender);
 
-      await checkAuth();
-      await loadResources();
-      await loadTeachers();
+      // 安全初始化各模組，彼此不互相阻塞
+      try { await checkAuth(); } catch(e) { console.error(e); }
+      try { await loadResources(); } catch(e) { console.error(e); }
+      try { await loadTeachers(); } catch(e) { console.error(e); }
+      
       fetchAndRender();
       setupRealtime();
     });
@@ -345,22 +346,37 @@ async function checkIsAdmin(email) {
       return `${dateStr} (${WEEKDAY_NAMES[d.getDay()]})`;
     }
 
-    function checkIsAdmin(email) {
-      return email && ADMIN_EMAILS.includes(email.toLowerCase());
+    // 🌟 動態向 Supabase admins 表查詢是否為管理員（不寫死任何電郵）
+    async function checkIsAdminFromDB(email) {
+      if (!email || !isConnected || !_supabase) return false;
+      try {
+        const { data, error } = await _supabase
+          .from('admins')
+          .select('email')
+          .ilike('email', email.trim());
+        return !error && data && data.length > 0;
+      } catch (e) {
+        console.warn("查詢 admins 表出錯:", e);
+        return false;
+      }
     }
 
-    // 身分認證檢查
     async function checkAuth() {
-      const { data: { session } } = await _supabase.auth.getSession();
-      updateAuthUI(session?.user || null);
+      if (!isConnected || !_supabase) return;
+      try {
+        const { data: { session } } = await _supabase.auth.getSession();
+        await updateAuthUI(session?.user || null);
 
-      _supabase.auth.onAuthStateChange((_event, session) => {
-        updateAuthUI(session?.user || null);
-        renderTable();
-      });
+        _supabase.auth.onAuthStateChange(async (_event, session) => {
+          await updateAuthUI(session?.user || null);
+          renderTable();
+        });
+      } catch (e) {
+        console.error("Auth 初始化錯誤:", e);
+      }
     }
 
-    function updateAuthUI(user) {
+    async function updateAuthUI(user) {
       currentUser = user;
       const loginBtn = document.getElementById('loginBtn');
       const userInfo = document.getElementById('userInfo');
@@ -375,7 +391,9 @@ async function checkIsAdmin(email) {
         emailDisplay.textContent = user.email;
         loginAlert.classList.add('hidden');
 
-        if (checkIsAdmin(user.email)) {
+        // 動態判定管理員
+        isCurrentUserAdmin = await checkIsAdminFromDB(user.email);
+        if (isCurrentUserAdmin) {
           adminBadge.classList.remove('hidden');
           adminPortalBtn.classList.remove('hidden');
         } else {
@@ -383,6 +401,7 @@ async function checkIsAdmin(email) {
           adminPortalBtn.classList.add('hidden');
         }
       } else {
+        isCurrentUserAdmin = false;
         loginBtn.classList.remove('hidden');
         userInfo.classList.add('hidden');
         adminPortalBtn.classList.add('hidden');
@@ -390,27 +409,31 @@ async function checkIsAdmin(email) {
       }
     }
 
-    // Google 登入 (強化版，不靜默失敗)
     async function loginWithGoogle() {
-      const { error } = await _supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          queryParams: { prompt: 'select_account' },
-          redirectTo: window.location.origin + window.location.pathname
-        }
-      });
-      if (error) {
-        alert('登入失敗：' + error.message);
+      if (!isConnected || !_supabase) return;
+      try {
+        const { error } = await _supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            queryParams: { prompt: 'select_account' },
+            redirectTo: window.location.origin + window.location.pathname
+          }
+        });
+        if (error) alert('登入失敗：' + error.message);
+      } catch (e) {
+        alert('叫用 Google 登入失敗，請檢查網絡！');
       }
     }
 
     async function logout() {
+      if (!isConnected || !_supabase) return;
       await _supabase.auth.signOut();
       location.reload();
     }
 
-    // 即時廣播
     function setupRealtime() {
+      if (!isConnected || !_supabase) return;
+
       _supabase
         .channel('public:bookings')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
@@ -433,33 +456,60 @@ async function checkIsAdmin(email) {
           updateRemainingPreview();
         })
         .subscribe();
+
+      // 即時監聽管理員名單變動
+      _supabase
+        .channel('public:admins')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'admins' }, async () => {
+          if (currentUser) await updateAuthUI(currentUser);
+        })
+        .subscribe();
     }
 
     // ================= 3. 動態物資總量 =================
     async function loadResources() {
-      const { data } = await _supabase.from('resources').select('name, total_qty');
-      if (data && data.length > 0) {
-        data.forEach(item => {
-          if (item.name === 'iPad') totalStock.iPad = item.total_qty;
-          if (item.name === 'Mobile') totalStock.Mobile = item.total_qty;
-        });
+      if (isConnected && _supabase) {
+        try {
+          const { data, error } = await _supabase.from('resources').select('name, total_qty');
+          if (!error && data && data.length > 0) {
+            data.forEach(item => {
+              if (item.name === 'iPad') totalStock.iPad = item.total_qty;
+              if (item.name === 'Mobile') totalStock.Mobile = item.total_qty;
+            });
+          }
+        } catch (e) {
+          console.warn("載入資源庫存出錯", e);
+        }
       }
 
       document.getElementById('totalStockSubtitle').textContent = 
         `全校總量基準：iPad ${totalStock.iPad} 部 ｜ Mobile ${totalStock.Mobile} 部`;
+
+      const deviceSelect = document.getElementById('deviceType');
+      const selectedVal = deviceSelect.value || 'iPad';
+      deviceSelect.innerHTML = `
+        <option value="iPad">iPad</option>
+        <option value="Mobile">Mobile</option>
+      `;
+      deviceSelect.value = selectedVal;
     }
 
     // ================= 4. 載入教師名單 =================
     async function loadTeachers() {
-      const { data } = await _supabase
-        .from('teachers')
-        .select('name, is_suspended, suspended_until, missed_count');
+      if (isConnected && _supabase) {
+        try {
+          const { data, error } = await _supabase
+            .from('teachers')
+            .select('name, is_suspended, suspended_until, missed_count');
 
-      if (data && data.length > 0) {
-        teachersList = data.sort((a, b) => a.name.localeCompare(b.name, 'zh-HK'));
+          if (!error && data && data.length > 0) {
+            teachersList = data.sort((a, b) => a.name.localeCompare(b.name, 'zh-HK'));
+          }
+        } catch (e) {
+          console.warn("載入教師名單出錯", e);
+        }
       }
 
-      // 填入下拉選單
       const select = document.getElementById('teacherSelect');
       select.innerHTML = '<option value="" disabled selected>請選擇老師姓名...</option>';
       teachersList.forEach(teacher => {
@@ -483,14 +533,14 @@ async function checkIsAdmin(email) {
     // 渲染前台唯讀教師欠取名單
     function renderFrontTeachersTable() {
       const tbody = document.getElementById('frontTeachersTableBody');
-      const badge = document.getElementById('frontSuspendedCount');
+      const frontSuspendedCount = document.getElementById('frontSuspendedCount');
       tbody.innerHTML = '';
 
       const sorted = [...teachersList].sort((a, b) => 
         (b.is_suspended - a.is_suspended) || (b.missed_count - a.missed_count)
       );
 
-      badge.textContent = `${sorted.filter(t => t.is_suspended).length} 位停借中`;
+      frontSuspendedCount.textContent = `${sorted.filter(t => t.is_suspended).length} 位停借中`;
 
       sorted.forEach(t => {
         const tr = document.createElement('tr');
@@ -498,12 +548,10 @@ async function checkIsAdmin(email) {
         tr.innerHTML = `
           <td class="py-3 px-4 font-semibold text-slate-800">${t.name}</td>
           <td class="py-3 px-4 font-bold ${t.missed_count > 0 ? 'text-rose-600' : 'text-slate-500'}">
-            ${t.missed_count} 次
+            ${t.missed_count || 0} 次
           </td>
           <td class="py-3 px-4">
-            ${t.is_suspended 
-              ? '<span class="px-2 py-0.5 bg-rose-100 text-rose-700 rounded font-bold">⛔ 暫停借用中</span>' 
-              : '<span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded font-medium">正常</span>'}
+            ${t.is_suspended ? '<span class="px-2 py-0.5 bg-rose-100 text-rose-700 rounded font-bold">⛔ 暫停借用中</span>' : '<span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded font-medium">正常</span>'}
           </td>
           <td class="py-3 px-4 font-mono text-slate-500 text-[11px]">${t.suspended_until || '--'}</td>
         `;
@@ -511,17 +559,26 @@ async function checkIsAdmin(email) {
       });
     }
 
-    // ================= 5. 讀取預約與計算庫存 =================
+    // ================= 5. 讀取預約與動態計算各節尚餘數量 =================
     async function fetchAndRender() {
       const selectedDate = document.getElementById('selectDate').value;
       document.getElementById('displaySelectedDate').textContent = formatDateWithWeekday(selectedDate);
 
-      const { data } = await _supabase
-        .from('bookings')
-        .select('*')
-        .eq('date', selectedDate);
+      if (isConnected && _supabase) {
+        try {
+          const { data, error } = await _supabase
+            .from('bookings')
+            .select('*')
+            .eq('date', selectedDate);
 
-      currentBookings = data || [];
+          if (!error && data) {
+            currentBookings = data;
+          }
+        } catch (e) {
+          console.warn("讀取預約資料出錯", e);
+        }
+      }
+
       renderDashboard();
       renderTable();
       updateRemainingPreview();
@@ -541,10 +598,11 @@ async function checkIsAdmin(email) {
       const remaining = getRemainingStock(lesson, device);
 
       document.getElementById('stockBadge').textContent = `(尚餘: ${remaining} 部)`;
-      document.getElementById('quantity').max = remaining;
+      const qtyInput = document.getElementById('quantity');
+      qtyInput.max = remaining;
     }
 
-    // 前台分頁切換
+    // ================= 6. 介面與分頁切換渲染 =================
     function switchFrontTab(sectionId) {
       document.querySelectorAll('.tab-section-content').forEach(el => el.classList.add('hidden'));
       document.querySelectorAll('.tab-btn').forEach(el => {
@@ -558,7 +616,6 @@ async function checkIsAdmin(email) {
       activeBtn.classList.remove('border-transparent', 'text-slate-500');
     }
 
-    // 渲染看板
     function renderDashboard() {
       const grid = document.getElementById('lessonsGrid');
       grid.innerHTML = '';
@@ -591,7 +648,6 @@ async function checkIsAdmin(email) {
       }
     }
 
-    // 渲染清單
     function renderTable() {
       const tbody = document.getElementById('bookingsTableBody');
       const emptyMsg = document.getElementById('emptyMessage');
@@ -607,11 +663,9 @@ async function checkIsAdmin(email) {
       emptyMsg.classList.add('hidden');
 
       currentBookings.sort((a, b) => a.lesson - b.lesson);
-      
       currentBookings.forEach(item => {
-        const isAdmin = currentUser && checkIsAdmin(currentUser.email);
         const isOwner = currentUser && (item.user_email && currentUser.email === item.user_email);
-        const canDelete = isAdmin || isOwner;
+        const canDelete = isCurrentUserAdmin || isOwner;
 
         const tr = document.createElement('tr');
         tr.className = "hover:bg-slate-50/80 transition";
@@ -641,7 +695,7 @@ async function checkIsAdmin(email) {
       });
     }
 
-    // 提交借用表單
+    // ================= 7. 提交借用表單 =================
     async function handleFormSubmit(event) {
       event.preventDefault();
 
@@ -688,33 +742,25 @@ async function checkIsAdmin(email) {
         return;
       }
 
-      const { error } = await _supabase.from('bookings').insert([{
-        date,
-        lesson,
-        teacher_name,
-        device_type,
-        quantity,
-        class: className,
-        subject,
-        room,
-        remarks,
-        status: 'pending',
-        user_email: currentUser.email
-      }]);
+      if (isConnected && _supabase) {
+        const { error } = await _supabase.from('bookings').insert([{
+          date, lesson, teacher_name, device_type, quantity, class: className, subject, room, remarks, status: 'pending', user_email: currentUser.email
+        }]);
 
-      if (error) {
-        alert('登記失敗：' + error.message);
-      } else {
-        alert(`✅ 借用成功！已為 ${teacher_name} 登記 ${LESSON_NAMES[lesson]} 的 ${device_type} (${quantity} 部)。`);
-        document.getElementById('bookingForm').reset();
-        fetchAndRender();
+        if (error) {
+          alert('登記失敗：' + error.message);
+        } else {
+          alert(`✅ 借用成功！已為 ${teacher_name} 登記 ${LESSON_NAMES[lesson]} 的 ${device_type} (${quantity} 部)。`);
+          document.getElementById('bookingForm').reset();
+          fetchAndRender();
+        }
       }
 
       submitBtn.disabled = false;
       submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
     }
 
-    // 取消借用
+    // ================= 8. 取消借用 =================
     async function deleteBooking(id, teacherName) {
       if (!currentUser) {
         alert('請先登入！');
@@ -723,11 +769,13 @@ async function checkIsAdmin(email) {
 
       if (!confirm(`確定要取消 ${teacherName} 的此筆借用記錄嗎？釋出的數量將即時回補。`)) return;
 
-      const { error } = await _supabase.from('bookings').delete().eq('id', id);
-      if (error) {
-        alert('刪除失敗：' + error.message);
-      } else {
-        fetchAndRender();
+      if (isConnected && _supabase) {
+        const { error } = await _supabase.from('bookings').delete().eq('id', id);
+        if (error) {
+          alert('刪除失敗：' + error.message);
+        } else {
+          fetchAndRender();
+        }
       }
     }
   </script>

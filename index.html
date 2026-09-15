@@ -328,17 +328,29 @@
     let currentBookings = [];
     let teachersList = [];
 
-      // ================= 2. 初始化 =================
+
+ // ================= 2. 初始化 =================
     document.addEventListener('DOMContentLoaded', async () => {
       const dateInput = document.getElementById('selectDate');
       dateInput.value = getTodayString();
       dateInput.addEventListener('change', fetchAndRender);
 
-      checkAuth();
-      await loadResources(); // 💡 確保先讀取到庫存再進行後續渲染
-      loadTeachers();
-      fetchAndRender();
-      setupRealtime();
+      try {
+        // 1. 先確認與監聽登入身分 (防止 RLS 判定因非同步而錯亂)
+        await checkAuth();
+        
+        // 2. 嚴格依序載入基礎資料庫設定
+        await loadResources(); // 💡 確保 resources 一定讀取完畢並成功給予 totalStock 值
+        await loadTeachers();  // 💡 確保教師名單也載入完畢
+        
+        // 3. 最後才去載入預約並渲染看板 (這時 totalStock 100% 有值，不會出現讀取不了的情況)
+        await fetchAndRender();
+        
+        // 4. 開啟即時監聽
+        setupRealtime();
+      } catch (err) {
+        console.error("初始化載入失敗:", err);
+      }
     });
 
     function getTodayString() {
@@ -368,15 +380,20 @@
       }
     }
 
-    // 身分認證檢查 (即時監聽 OAuth 登入跳轉)
+ // 身分認證檢查 (即時監聽 OAuth 登入跳轉)
     async function checkAuth() {
       try {
         const { data: { session } } = await _supabase.auth.getSession();
         await updateAuthUI(session?.user || null);
 
-        _supabase.auth.onAuthStateChange(async (_event, session) => {
-          await updateAuthUI(session?.user || null);
-          renderTable();
+        // 💡 讓監聽回傳，以便初始化中 await
+        return new Promise((resolve) => {
+          _supabase.auth.onAuthStateChange(async (_event, session) => {
+            await updateAuthUI(session?.user || null);
+            renderTable();
+            resolve();
+          });
+          resolve();
         });
       } catch (e) {
         console.error("Auth 初始化錯誤:", e);

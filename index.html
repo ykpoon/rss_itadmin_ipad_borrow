@@ -832,7 +832,7 @@
       }
     }
 
-      // ================= 7. 渲染當日借用詳情清單 (支援 Waiting List) =================
+       // ================= 7. 渲染當日借用詳情清單 (依登記時間先後嚴格排序候補) =================
     function renderTable() {
       const tbody = document.getElementById('bookingsTableBody');
       const emptyMsg = document.getElementById('emptyMessage');
@@ -847,24 +847,65 @@
       }
       emptyMsg.classList.add('hidden');
 
-      currentBookings.sort((a, b) => a.lesson - b.lesson);
+      // 💡 1. 將預約分流：正式預約與候補預約
+      const activeBookings = [];
+      const waitingBookings = [];
+
       currentBookings.forEach(item => {
+        const isWaiting = (item.remarks && item.remarks.includes('[候補]')) || item.status === 'waiting';
+        if (isWaiting) {
+          waitingBookings.push(item);
+        } else {
+          activeBookings.push(item);
+        }
+      });
+
+      // 💡 2. 進行個別排序：
+      // * 正式預約按「課節」由小到大排序
+      activeBookings.sort((a, b) => a.lesson - b.lesson);
+      
+      // * 候補預約嚴格按「登記創建時間 created_at」先後順序排序（更早登記的排在前面）
+      waitingBookings.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+      // 💡 3. 合併名單：正式預約在上，候補預約在下
+      const finalSortedList = [...activeBookings, ...waitingBookings];
+
+      // 用於統計各設備（iPad / Mobile）在不同課節的候補名次
+      const waitingCounters = {};
+
+      finalSortedList.forEach(item => {
         const isOwner = currentUser && (item.user_email && currentUser.email === item.user_email);
         const canDelete = isCurrentUserAdmin || isOwner;
-        const isWaiting = item.status === 'waiting';
+        const isWaiting = (item.remarks && item.remarks.includes('[候補]')) || item.status === 'waiting';
+
+        let waitingBadgeHTML = '';
+        if (isWaiting) {
+          // 💡 計算此設備在該課節的候補次序
+          const key = `${item.lesson}_${item.device_type}`;
+          waitingCounters[key] = (waitingCounters[key] || 0) + 1;
+          const waitOrder = waitingCounters[key];
+
+          // 生成精美的候補次序標籤 (如：候補 1)
+          waitingBadgeHTML = `
+            <span class="ml-1 px-1.5 py-0.5 bg-amber-500 text-white text-[10px] rounded-sm font-bold border border-amber-600 animate-pulse">
+              候補 ${waitOrder}
+            </span>
+          `;
+        }
 
         const tr = document.createElement('tr');
-        // 💡 候補的預約背景色會微調成淡黃色
-        tr.className = isWaiting ? "bg-amber-50/50 hover:bg-amber-50/80 transition" : "hover:bg-slate-50/80 transition";
+        tr.className = isWaiting ? "bg-amber-50/40 hover:bg-amber-50/70 transition" : "hover:bg-slate-50/80 transition";
         tr.innerHTML = `
-          <td class="py-2.5 px-3 font-semibold text-slate-800">${LESSON_NAMES[item.lesson]}</td>
+          <td class="py-2.5 px-3 font-semibold text-slate-800">
+            ${LESSON_NAMES[item.lesson]}
+            ${isWaiting ? '<span class="block text-[10px] text-amber-600 font-bold">(候補隊列)</span>' : ''}
+          </td>
           <td class="py-2.5 px-3 font-medium text-indigo-700">${item.teacher_name}</td>
           <td class="py-2.5 px-3 text-slate-700 font-semibold">
             <span class="${item.device_type === 'iPad' ? 'text-blue-600' : 'text-purple-600'}">
               ${item.device_type} × ${item.quantity}
             </span>
-            <!-- 💡 新增：前台候補黃色小標籤 -->
-            ${isWaiting ? '<span class="ml-1.5 px-1.5 py-0.5 bg-amber-100 text-amber-800 text-[10px] rounded-sm font-bold border border-amber-200">候補中</span>' : ''}
+            ${waitingBadgeHTML}
           </td>
           <td class="py-2.5 px-3">${item.class} (${item.subject})</td>
           <td class="py-2.5 px-3">${item.room}</td>
@@ -883,6 +924,7 @@
         tbody.appendChild(tr);
       });
     }
+
 
 
     // ================= 8. 提交借用表單 (已修復停借日期過期判定與候補 HTML5 阻擋) =================

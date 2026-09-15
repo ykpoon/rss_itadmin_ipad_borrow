@@ -550,8 +550,8 @@ function renderCalendar() {
   }
 }
 
-// ================= index.js 中的 renderDashboard 函數美化 =================
-// ================= index.js 中的 renderDashboard 函數清新淺色美化版 =================
+
+// ================= index.js 中的 renderDashboard 函數（已修正：淺灰底色、字型放大） =================
 function renderDashboard() {
   const grid = document.getElementById('lessonsGrid');
   if (!grid) return;
@@ -561,14 +561,14 @@ function renderDashboard() {
     const remIpad = getRemainingStock(l, 'iPad');
     const remMobile = getRemainingStock(l, 'Mobile');
 
-    // 💡 清新淺色與精緻小巧的卡片設計
+    // 💡 剩餘量小標籤的顏色（供應充足：綠色、緊張：橙黃色、額滿：紅色）
     const ipadColor = remIpad > 30 
-      ? 'text-teal-700 bg-teal-50 border-teal-100' 
-      : (remIpad > 0 ? 'text-amber-700 bg-amber-50/80 border-amber-100' : 'text-rose-700 bg-rose-50/80 border-rose-100');
+      ? 'text-teal-700 bg-teal-100/60 border-teal-200' 
+      : (remIpad > 0 ? 'text-amber-700 bg-amber-100/60 border-amber-200' : 'text-rose-700 bg-rose-100/80 border-rose-200');
     
     const mobileColor = remMobile > 15 
-      ? 'text-teal-700 bg-teal-50 border-teal-100' 
-      : (remMobile > 0 ? 'text-amber-700 bg-amber-50/80 border-amber-100' : 'text-rose-700 bg-rose-50/80 border-rose-100');
+      ? 'text-teal-700 bg-teal-100/60 border-teal-200' 
+      : (remMobile > 0 ? 'text-amber-700 bg-amber-100/60 border-amber-200' : 'text-rose-700 bg-rose-100/80 border-rose-200');
 
     const specialIpadOverride = dailyAdjustments.find(a => a.device_type === 'iPad');
     const specialMobileOverride = dailyAdjustments.find(a => a.device_type === 'Mobile');
@@ -576,27 +576,30 @@ function renderDashboard() {
     const mobileTotal = specialMobileOverride ? specialMobileOverride.available_qty : totalStock.Mobile;
 
     const card = document.createElement('div');
-    // 使用優雅的純白半透明卡片 (tech-card) 並加入懸停陰影
-    card.className = "bg-white/90 border border-teal-500/5 rounded-2xl p-4 flex flex-col justify-between shadow-xs hover:border-teal-500/20 hover:shadow-md transition-all duration-200 transform hover:-translate-y-0.5";
+    // 💡 已修正：將底色改為優雅的淺灰色 bg-slate-50，並加入更細緻的邊框與 hover 微微放大效果
+    card.className = "bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col justify-between shadow-xs hover:border-teal-500/30 hover:shadow-md transition-all duration-200 transform hover:-translate-y-0.5";
     card.innerHTML = `
-      <div class="text-xs font-bold text-slate-700 mb-2 pb-1.5 border-b border-slate-100 flex justify-between items-center font-mono">
+      <!-- 課節標題：字型加大至 text-sm / font-bold -->
+      <div class="text-sm font-bold text-slate-700 mb-2.5 pb-2 border-b border-slate-200 flex justify-between items-center">
         <span>${LESSON_NAMES[l]}</span>
-        <span class="w-1.5 h-1.5 rounded-full bg-teal-400"></span>
+        <span class="w-2 h-2 rounded-full bg-teal-500"></span>
       </div>
-      <div class="space-y-1.5 text-[10px] font-semibold">
-        <div class="flex items-center justify-between px-2.5 py-1.5 rounded-xl border ${ipadColor}">
-          <span class="font-bold">iPad</span>
-          <span class="font-mono font-black">${remIpad} / ${ipadTotal}</span>
+      <!-- 設備數量：字型加大至 text-xs / font-bold / text-sm 數字 -->
+      <div class="space-y-2 text-xs font-bold">
+        <div class="flex items-center justify-between px-3 py-2 rounded-xl border ${ipadColor}">
+          <span>iPad</span>
+          <span class="font-mono text-sm font-black">${remIpad} / ${ipadTotal}</span>
         </div>
-        <div class="flex items-center justify-between px-2.5 py-1.5 rounded-xl border ${mobileColor}">
-          <span class="font-bold">Mobile</span>
-          <span class="font-mono font-black">${remMobile} / ${mobileTotal}</span>
+        <div class="flex items-center justify-between px-3 py-2 rounded-xl border ${mobileColor}">
+          <span>Mobile</span>
+          <span class="font-mono text-sm font-black">${remMobile} / ${mobileTotal}</span>
         </div>
       </div>
     `;
     grid.appendChild(card);
   }
 }
+
 
 
 

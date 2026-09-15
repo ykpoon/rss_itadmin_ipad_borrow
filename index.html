@@ -91,108 +91,20 @@
     <div id="booking-section" class="tab-section-content space-y-6">
       <!-- 1. 各節設備剩餘量看板 -->
       <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
-<!-- 修改後：新增小日曆與切換按鈕的標頭 HTML -->
-<!-- ================= 這裡更換：新增小日曆與切換按鈕的看板標頭 HTML ================= -->
-<div class="flex flex-col md:flex-row md:items-center justify-between pb-4 mb-4 border-b border-slate-100 gap-4">
-  <div class="flex flex-wrap items-center gap-3">
-    <div>
-      <h2 class="text-lg font-bold text-slate-800 flex flex-wrap items-center gap-2">
-        <i class="fa-solid fa-chart-pie text-indigo-600"></i>
-        <span>各節設備剩餘量看板</span>
-        <span id="displaySelectedDate" class="text-indigo-600 font-semibold bg-indigo-50 px-2 py-0.5 rounded-md text-sm border border-indigo-100"></span>
-      </h2>
-      <p id="totalStockSubtitle" class="text-xs text-slate-500 mt-0.5">全校總量基準：正在載入資料庫庫存...</p>
-    </div>
-
-    <!-- 💡 看板專屬：前一天、快捷小月曆、後一天控制區 -->
-    <div class="flex items-center bg-slate-100 border border-slate-200 rounded-lg p-1 shadow-inner gap-1 ml-1">
-      <!-- 前一天 -->
-      <button 
-        id="dashboard-prev-day" 
-        type="button"
-        class="p-1.5 text-slate-600 hover:text-indigo-600 hover:bg-white rounded-md transition duration-150" 
-        title="前一天"
-      >
-        <i class="fa-solid fa-chevron-left text-xs"></i>
-      </button>
-
-      <!-- 快捷小日曆 (與頂部日期、資料庫調節量完全連動) -->
-      <div class="relative flex items-center">
-        <input 
-          type="date" 
-          id="dashboard-date-picker" 
-          class="w-8 h-8 opacity-0 absolute cursor-pointer z-10"
-          title="點擊選擇日期"
-        />
-        <button type="button" class="w-8 h-8 flex items-center justify-center text-slate-600 hover:text-indigo-600 hover:bg-white rounded-md transition">
-          <i class="fa-regular fa-calendar-days text-sm"></i>
-        </button>
-      </div>
-
-      <!-- 後一天 -->
-      <button 
-        id="dashboard-next-day" 
-        type="button"
-        class="p-1.5 text-slate-600 hover:text-indigo-600 hover:bg-white rounded-md transition duration-150" 
-        title="後一天"
-      >
-        <i class="fa-solid fa-chevron-right text-xs"></i>
-      </button>
-    </div>
-  </div>
-
-  <div class="flex items-center gap-4 text-xs">
-    <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-emerald-500"></span> 供應充足 (>30)</span>
-    <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-amber-500"></span> 緊張 (1-30)</span>
-    <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-rose-500"></span> 額滿 (0)</span>
-  </div>
-</div>
-
-
-    <!-- 💡 看板專屬：前一天、快捷日曆、後一天控制區 -->
-    <div class="flex items-center bg-slate-100 border border-slate-200 rounded-lg p-1 shadow-inner gap-1 ml-1">
-      <!-- 前一天 -->
-      <button 
-        id="dashboard-prev-day" 
-        type="button"
-        class="p-1.5 text-slate-600 hover:text-indigo-600 hover:bg-white rounded-md transition duration-150" 
-        title="前一天"
-      >
-        <i class="fa-solid fa-chevron-left text-xs"></i>
-      </button>
-
-      <!-- 快捷小日曆 (與頂部日期連動) -->
-      <div class="relative flex items-center">
-        <input 
-          type="date" 
-          id="dashboard-date-picker" 
-          class="w-8 h-8 opacity-0 absolute cursor-pointer z-10"
-          title="點擊選擇日期"
-        />
-        <button type="button" class="w-8 h-8 flex items-center justify-center text-slate-600 hover:text-indigo-600 hover:bg-white rounded-md transition">
-          <i class="fa-regular fa-calendar-days text-sm"></i>
-        </button>
-      </div>
-
-      <!-- 後一天 -->
-      <button 
-        id="dashboard-next-day" 
-        type="button"
-        class="p-1.5 text-slate-600 hover:text-indigo-600 hover:bg-white rounded-md transition duration-150" 
-        title="後一天"
-      >
-        <i class="fa-solid fa-chevron-right text-xs"></i>
-      </button>
-    </div>
-  </div>
-
-  <div class="flex items-center gap-4 text-xs">
-    <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-emerald-500"></span> 供應充足 (>30)</span>
-    <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-amber-500"></span> 緊張 (1-30)</span>
-    <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-rose-500"></span> 額滿 (0)</span>
-  </div>
-</div>
-
+        <div class="flex flex-col md:flex-row md:items-center justify-between pb-4 mb-4 border-b border-slate-100 gap-2">
+          <div>
+            <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+              <i class="fa-solid fa-chart-pie text-indigo-600"></i>
+              各節設備剩餘量看板 (<span id="displaySelectedDate" class="text-indigo-600 font-semibold"></span>)
+            </h2>
+            <p id="totalStockSubtitle" class="text-xs text-slate-500 mt-0.5">全校總量基準：正在載入資料庫庫存...</p>
+          </div>
+          <div class="flex items-center gap-4 text-xs">
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-emerald-500"></span> 供應充足 (>30)</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-amber-500"></span> 緊張 (1-30)</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-rose-500"></span> 額滿 (0)</span>
+          </div>
+        </div>
 
         <div id="lessonsGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
           <!-- 課節卡片由 JS 動態生成 -->
@@ -463,72 +375,11 @@
     let calendarDate = new Date(); // 紀錄月曆當前顯示的年月
     let monthlyBookings = [];      // 儲存當月所有的借用記錄以便統計
 
-        // ================= 2. 初始化 =================
+    // ================= 2. 初始化 =================
     document.addEventListener('DOMContentLoaded', async () => {
       const dateInput = document.getElementById('selectDate');
       dateInput.value = getTodayString();
       dateInput.addEventListener('change', fetchAndRender);
-
-      // ================= 這裡更換/新增：看板專屬小日曆與快速前後天切換邏輯 =================
-      const dashDatePicker = document.getElementById('dashboard-date-picker');
-      const dashPrevBtn = document.getElementById('dashboard-prev-day');
-      const dashNextBtn = document.getElementById('dashboard-next-day');
-
-      // 輔助函數：將 Date 物件轉換為 YYYY-MM-DD
-      function formatDateToYYYYMMDD(date) {
-        const y = date.getFullYear();
-        const m = String(date.getMonth() + 1).padStart(2, '0');
-        const d = String(date.getDate()).padStart(2, '0');
-        return `${y}-${m}-${d}`;
-      }
-
-      // 輔助函數：取得當前畫面上已選的 Date 物件 (防跨瀏覽器時區偏差)
-      function getSelectedDateObj() {
-        const val = dateInput.value || getTodayString();
-        return new Date(val.replace(/-/g, '/'));
-      }
-
-      // 更新日期核心函數：同步更新主日期與小日曆輸入框並載入新數據
-      function changeSelectedDate(newDateStr) {
-        dateInput.value = newDateStr;
-        dashDatePicker.value = newDateStr;
-        
-        // 💡 呼叫 fetchAndRender()，即時刷新看板數據、月曆定位、表單與預約清單
-        fetchAndRender();
-      }
-
-      // 初始化時，將看板小日曆設為與主日期一致
-      setTimeout(() => {
-        dashDatePicker.value = dateInput.value;
-      }, 100);
-
-      // 監聽看板小日曆變更：當用戶點擊小月曆挑選日期時
-      dashDatePicker.addEventListener('change', (e) => {
-        const selected = e.target.value;
-        if (selected) {
-          changeSelectedDate(selected);
-        }
-      });
-
-      // 監聽「前一天」按鈕點擊
-      dashPrevBtn.addEventListener('click', () => {
-        const current = getSelectedDateObj();
-        current.setDate(current.getDate() - 1);
-        changeSelectedDate(formatDateToYYYYMMDD(current));
-      });
-
-      // 監聽「後一天」按鈕點擊
-      dashNextBtn.addEventListener('click', () => {
-        const current = getSelectedDateObj();
-        current.setDate(current.getDate() + 1);
-        changeSelectedDate(formatDateToYYYYMMDD(current));
-      });
-
-      // 當頂部的主日期 (#selectDate) 改變時，同步更新看板小日曆的數值
-      dateInput.addEventListener('change', () => {
-        dashDatePicker.value = dateInput.value;
-      });
-      // ======================================================================
 
       try {
         await checkAuth();
@@ -541,7 +392,6 @@
         console.error("初始化載入失敗:", err);
       }
     });
-
 
     function getTodayString() {
       const today = new Date();

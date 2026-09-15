@@ -551,6 +551,7 @@ function renderCalendar() {
 }
 
 // ================= index.js 中的 renderDashboard 函數美化 =================
+// ================= index.js 中的 renderDashboard 函數清新淺色美化版 =================
 function renderDashboard() {
   const grid = document.getElementById('lessonsGrid');
   if (!grid) return;
@@ -560,14 +561,14 @@ function renderDashboard() {
     const remIpad = getRemainingStock(l, 'iPad');
     const remMobile = getRemainingStock(l, 'Mobile');
 
-    // 💡 科技感深色半透明與微發光設計
+    // 💡 清新淺色與精緻小巧的卡片設計
     const ipadColor = remIpad > 30 
-      ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30 shadow-sm shadow-emerald-500/5' 
-      : (remIpad > 0 ? 'text-amber-400 bg-amber-500/10 border-amber-500/30 shadow-sm shadow-amber-500/5' : 'text-rose-400 bg-rose-500/10 border-rose-500/30 shadow-sm shadow-rose-500/5');
+      ? 'text-teal-700 bg-teal-50 border-teal-100' 
+      : (remIpad > 0 ? 'text-amber-700 bg-amber-50/80 border-amber-100' : 'text-rose-700 bg-rose-50/80 border-rose-100');
     
     const mobileColor = remMobile > 15 
-      ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30 shadow-sm shadow-emerald-500/5' 
-      : (remMobile > 0 ? 'text-amber-400 bg-amber-500/10 border-amber-500/30 shadow-sm shadow-amber-500/5' : 'text-rose-400 bg-rose-500/10 border-rose-500/30 shadow-sm shadow-rose-500/5');
+      ? 'text-teal-700 bg-teal-50 border-teal-100' 
+      : (remMobile > 0 ? 'text-amber-700 bg-amber-50/80 border-amber-100' : 'text-rose-700 bg-rose-50/80 border-rose-100');
 
     const specialIpadOverride = dailyAdjustments.find(a => a.device_type === 'iPad');
     const specialMobileOverride = dailyAdjustments.find(a => a.device_type === 'Mobile');
@@ -575,26 +576,28 @@ function renderDashboard() {
     const mobileTotal = specialMobileOverride ? specialMobileOverride.available_qty : totalStock.Mobile;
 
     const card = document.createElement('div');
-    card.className = "bg-slate-950/60 border border-slate-800 hover:border-teal-500/40 rounded-2xl p-4 flex flex-col justify-between shadow-lg transition-all duration-300 transform hover:-translate-y-1 glow-effect";
+    // 使用優雅的純白半透明卡片 (tech-card) 並加入懸停陰影
+    card.className = "bg-white/90 border border-teal-500/5 rounded-2xl p-4 flex flex-col justify-between shadow-xs hover:border-teal-500/20 hover:shadow-md transition-all duration-200 transform hover:-translate-y-0.5";
     card.innerHTML = `
-      <div class="text-xs font-bold text-slate-200 mb-2 pb-1.5 border-b border-slate-800/60 flex justify-between items-center font-mono">
+      <div class="text-xs font-bold text-slate-700 mb-2 pb-1.5 border-b border-slate-100 flex justify-between items-center font-mono">
         <span>${LESSON_NAMES[l]}</span>
-        <span class="w-1.5 h-1.5 rounded-full bg-teal-400 shadow-md shadow-teal-400/50"></span>
+        <span class="w-1.5 h-1.5 rounded-full bg-teal-400"></span>
       </div>
-      <div class="space-y-2 text-[11px] font-semibold">
+      <div class="space-y-1.5 text-[10px] font-semibold">
         <div class="flex items-center justify-between px-2.5 py-1.5 rounded-xl border ${ipadColor}">
           <span class="font-bold">iPad</span>
-          <span class="font-mono">${remIpad} / ${ipadTotal}</span>
+          <span class="font-mono font-black">${remIpad} / ${ipadTotal}</span>
         </div>
         <div class="flex items-center justify-between px-2.5 py-1.5 rounded-xl border ${mobileColor}">
           <span class="font-bold">Mobile</span>
-          <span class="font-mono">${remMobile} / ${mobileTotal}</span>
+          <span class="font-mono font-black">${remMobile} / ${mobileTotal}</span>
         </div>
       </div>
     `;
     grid.appendChild(card);
   }
 }
+
 
 
 // ================= 7. 渲染當日借用詳情清單 =================

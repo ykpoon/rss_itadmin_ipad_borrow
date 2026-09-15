@@ -551,7 +551,7 @@ function renderCalendar() {
 }
 
 
-// ================= index.js 中的 renderDashboard 函數（已修正：字型統一、左右對齊、完美間距） =================
+// ================= index.js 中的 renderDashboard 函數（已修正：網格三列對齊、強制不折行、大字體高亮） =================
 function renderDashboard() {
   const grid = document.getElementById('lessonsGrid');
   if (!grid) return;
@@ -561,14 +561,18 @@ function renderDashboard() {
     const remIpad = getRemainingStock(l, 'iPad');
     const remMobile = getRemainingStock(l, 'Mobile');
 
-    // 💡 剩餘量小標籤的顏色（供應充足：綠色、緊張：黃橙色、額滿：紅色）
+    // 💡 剩餘量小標籤的底色與框線（供應充足、緊張、額滿）
     const ipadColor = remIpad > 30 
-      ? 'text-teal-800 bg-teal-100/60 border-teal-200' 
-      : (remIpad > 0 ? 'text-amber-800 bg-amber-100/60 border-amber-200' : 'text-rose-800 bg-rose-100/80 border-rose-200');
+      ? 'bg-teal-50/50 border-teal-100 text-teal-900' 
+      : (remIpad > 0 ? 'bg-amber-50/50 border-amber-100 text-amber-900' : 'bg-rose-50/80 border-rose-100 text-rose-900');
     
+    // 💡 剩餘數字（中間大字體）的顏色，方便老師一眼看清
+    const ipadNumColor = remIpad > 30 ? 'text-teal-600' : (remIpad > 0 ? 'text-amber-600' : 'text-rose-500');
+    const mobileNumColor = remMobile > 15 ? 'text-teal-600' : (remMobile > 0 ? 'text-amber-600' : 'text-rose-500');
+
     const mobileColor = remMobile > 15 
-      ? 'text-teal-800 bg-teal-100/60 border-teal-200' 
-      : (remMobile > 0 ? 'text-amber-800 bg-amber-100/60 border-amber-200' : 'text-rose-800 bg-rose-100/80 border-rose-200');
+      ? 'bg-teal-50/50 border-teal-100 text-teal-900' 
+      : (remMobile > 0 ? 'bg-amber-50/50 border-amber-100 text-amber-900' : 'bg-rose-50/80 border-rose-100 text-rose-900');
 
     const specialIpadOverride = dailyAdjustments.find(a => a.device_type === 'iPad');
     const specialMobileOverride = dailyAdjustments.find(a => a.device_type === 'Mobile');
@@ -576,33 +580,43 @@ function renderDashboard() {
     const mobileTotal = specialMobileOverride ? specialMobileOverride.available_qty : totalStock.Mobile;
 
     const card = document.createElement('div');
-    // 優雅的淺灰色卡片底色與極淡邊框
-    card.className = "bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col justify-between shadow-xs hover:border-teal-500/30 hover:shadow-md transition-all duration-200 transform hover:-translate-y-0.5";
+    // 優雅精巧的淺灰卡片底色與極淡邊框
+    card.className = "bg-slate-50 border border-slate-200/80 rounded-2xl p-4 flex flex-col justify-between shadow-xs hover:border-teal-500/20 hover:shadow-md transition-all duration-200 transform hover:-translate-y-0.5";
     card.innerHTML = `
-      <!-- 課節標題：加大字型並加粗 -->
+      <!-- 課節標題：加大字型並加粗，精確對齊 -->
       <div class="text-sm font-extrabold text-slate-700 mb-3 pb-2 border-b border-slate-200/60 flex justify-between items-center">
         <span>${LESSON_NAMES[l]}</span>
-        <span class="w-2 h-2 rounded-full bg-teal-500"></span>
+        <span class="w-1.5 h-1.5 rounded-full bg-teal-500"></span>
       </div>
-      <!-- 設備數量：字型完全統一，使用 flex 佈局的 justify-between 讓設備名稱在左、數字在右，完美避開擠在一起的問題 -->
-      <div class="space-y-2 text-xs font-bold">
-        <div class="flex items-center justify-between px-3 py-2 rounded-xl border ${ipadColor}">
-          <span class="tracking-wide">iPad</span>
-          <span class="font-extrabold text-sm ml-2">${remIpad} / ${ipadTotal}</span>
+      
+      <!-- 設備數量：字型完全統一，使用精準 Grid 三列佈局，確保永遠不會折行 -->
+      <div class="space-y-2 text-xs">
+        
+        <!-- iPad 行 -->
+        <div class="grid grid-cols-12 items-center px-2.5 py-1.5 rounded-xl border ${ipadColor} whitespace-nowrap">
+          <!-- 1. 設備名稱：佔 4/12 寬度 -->
+          <span class="col-span-4 font-bold text-slate-500 text-[11px]">iPad</span>
+          <!-- 2. 剩餘數量：佔 4/12 寬度，靠右對齊，使用醒目大字體 -->
+          <span class="col-span-4 text-right font-extrabold text-base ${ipadNumColor}">${remIpad}</span>
+          <!-- 3. 總量：佔 4/12 寬度，靠左對齊，用灰色小字體 -->
+          <span class="col-span-4 text-left font-semibold text-slate-400 text-[11px]">&nbsp;/&nbsp;${ipadTotal}</span>
         </div>
-        <div class="flex items-center justify-between px-3 py-2 rounded-xl border ${mobileColor}">
-          <span class="tracking-wide">Mobile</span>
-          <span class="font-extrabold text-sm ml-2">${remMobile} / ${mobileTotal}</span>
+        
+        <!-- Mobile 行 -->
+        <div class="grid grid-cols-12 items-center px-2.5 py-1.5 rounded-xl border ${mobileColor} whitespace-nowrap">
+          <!-- 1. 設備名稱 -->
+          <span class="col-span-4 font-bold text-slate-500 text-[11px]">Mobile</span>
+          <!-- 2. 剩餘數量 -->
+          <span class="col-span-4 text-right font-extrabold text-base ${mobileNumColor}">${remMobile}</span>
+          <!-- 3. 總量 -->
+          <span class="col-span-4 text-left font-semibold text-slate-400 text-[11px]">&nbsp;/&nbsp;${mobileTotal}</span>
         </div>
+        
       </div>
     `;
     grid.appendChild(card);
   }
 }
-
-
-
-
 
 // ================= 7. 渲染當日借用詳情清單 =================
 function renderTable() {

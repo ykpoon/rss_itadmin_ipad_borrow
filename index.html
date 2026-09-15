@@ -8,108 +8,118 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- FontAwesome 圖標庫 -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <!-- Google Fonts: 引入科技感與現代感兼具的 Noto Sans TC 與 Montserrat 字型 -->
-  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <!-- Google Fonts: 引入公認最美、最精緻的 Inter 科技字型與 Noto Sans TC -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;750;800&family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
   <!-- Supabase JS Client v2 -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     body { 
-      font-family: 'Montserrat', 'Noto Sans TC', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+      font-family: 'Inter', 'Noto Sans TC', -apple-system, sans-serif; 
+      letter-spacing: -0.01em; /* 讓 Inter 字型更精緻緊湊 */
     }
-    /* 自訂漸變動畫 */
-    .glow-effect:hover {
-      box-shadow: 0 0 15px rgba(20, 184, 166, 0.4);
+    .custom-gradient-bg {
+      background: linear-gradient(135deg, #f0fdfa 0%, #f8fafc 100%);
+    }
+    .tech-card {
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(20, 184, 166, 0.08);
+      box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.02), 0 1px 3px -1px rgba(20, 184, 166, 0.03);
+    }
+    .tech-card:hover {
+      border-color: rgba(20, 184, 166, 0.25);
+      box-shadow: 0 20px 40px -5px rgba(20, 184, 166, 0.05);
     }
     .tab-btn.active { 
-      border-color: #0d9488; 
       color: #0f766e; 
+      border-color: #14b8a6;
       font-weight: 700; 
     }
   </style>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col">
+<body class="custom-gradient-bg text-slate-700 min-h-screen flex flex-col">
 
-  <!-- 頂部導航列：深邃暗色搭藍綠光澤 -->
-  <header class="bg-slate-950/80 backdrop-blur-md border-b border-teal-500/20 shadow-lg sticky top-0 z-50 transition-all duration-300">
-    <div class="max-w-7xl mx-auto px-4 py-4 flex flex-wrap justify-between items-center gap-4">
+  <!-- 頂部導航列：精緻白色半透明毛玻璃 -->
+  <header class="bg-white/80 backdrop-blur-md border-b border-teal-500/10 sticky top-0 z-50 transition-all duration-300">
+    <div class="max-w-7xl mx-auto px-6 py-3.5 flex flex-wrap justify-between items-center gap-4">
       <div class="flex items-center space-x-4">
-        <!-- 學校 Logo：微發光 hover 縮放特效 -->
+        <!-- 學校 Logo 輕盈投影 -->
         <img 
           src="logo.png" 
           alt="Logo" 
-          class="h-12 w-auto object-contain rounded-xl bg-white/95 p-1 shadow-md shadow-teal-500/10 transition duration-300 hover:scale-105 hover:shadow-teal-500/30"
+          class="h-11 w-auto object-contain rounded-xl bg-white p-1 shadow-sm shadow-teal-500/5 transition duration-300 hover:scale-105"
         />
         <div class="flex flex-col">
-          <h1 class="text-xl font-extrabold tracking-wider bg-gradient-to-r from-teal-400 via-cyan-400 to-emerald-400 bg-clip-text text-transparent">
-            iPad / 設備借用管理系統
+          <h1 class="text-lg font-bold tracking-tight text-slate-800 flex items-center gap-2">
+            <span class="bg-gradient-to-r from-teal-600 to-cyan-600 bg-clip-text text-transparent font-extrabold">iPad & 設備借用系統</span>
           </h1>
-          <p class="text-[11px] text-teal-300/70 font-semibold tracking-widest uppercase">Smart Device Reservation Portal</p>
+          <p class="text-[10px] text-teal-600/70 font-bold tracking-widest uppercase">Smart Device Reservation Center</p>
         </div>
       </div>
       
-      <!-- 右側控制區 -->
+      <!-- 右側：控制區 -->
       <div class="flex flex-wrap items-center gap-3">
-        <!-- 查詢日期小日曆 -->
-        <div class="flex items-center space-x-2 bg-slate-800/80 hover:bg-slate-800 px-3 py-1.5 rounded-xl border border-teal-500/20 shadow-sm transition">
-          <i class="fa-regular fa-calendar text-teal-400"></i>
-          <label for="selectDate" class="text-xs font-bold text-teal-200">查詢日期：</label>
-          <input type="date" id="selectDate" class="bg-transparent text-teal-300 text-xs font-bold focus:outline-none cursor-pointer">
+        <!-- 查詢日期 -->
+        <div class="flex items-center space-x-2 bg-white/95 px-3.5 py-2 rounded-xl border border-teal-500/10 shadow-xs hover:border-teal-500/20 transition">
+          <i class="fa-regular fa-calendar text-teal-500 text-xs"></i>
+          <span class="text-xs font-semibold text-slate-500">查詢日期：</span>
+          <input type="date" id="selectDate" class="bg-transparent text-slate-800 text-xs font-bold focus:outline-none cursor-pointer">
         </div>
 
-        <!-- 管理員後台快速跳轉 -->
-        <a id="adminPortalBtn" href="admin.html" class="hidden bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-extrabold text-xs px-4 py-2 rounded-xl shadow-md shadow-amber-500/10 flex items-center gap-1.5 transition transform active:scale-95">
-          <i class="fa-solid fa-shield-halved"></i> IT 後台
+        <!-- 管理員後台跳轉 -->
+        <a id="adminPortalBtn" href="admin.html" class="hidden bg-teal-50 hover:bg-teal-100/80 text-teal-800 font-bold text-xs px-4 py-2 rounded-xl border border-teal-200 transition">
+          <i class="fa-solid fa-user-gear mr-1"></i> 進入管理後台
         </a>
 
-        <!-- 登入控制 -->
+        <!-- 登入控制區 -->
         <div id="authContainer">
-          <button id="loginBtn" onclick="loginWithGoogle()" class="bg-slate-800 hover:bg-slate-700 text-teal-300 font-bold text-xs px-4 py-2 rounded-xl border border-teal-500/30 flex items-center gap-2 transition transform active:scale-95 shadow-sm">
-            <i class="fa-brands fa-google text-teal-400"></i> Google 登入
+          <button id="loginBtn" onclick="loginWithGoogle()" class="bg-teal-600 hover:bg-teal-500 text-white font-semibold text-xs px-4 py-2 rounded-xl flex items-center gap-1.5 shadow-sm shadow-teal-500/10 transition">
+            <i class="fa-brands fa-google"></i> Google 登入
           </button>
           
-          <div id="userInfo" class="hidden flex items-center space-x-2 bg-slate-800/80 px-3 py-1.5 rounded-xl border border-teal-500/30">
-            <i class="fa-solid fa-circle-user text-teal-400"></i>
-            <span id="userEmailDisplay" class="text-xs text-slate-200 font-bold font-mono"></span>
-            <span id="adminBadge" class="hidden text-[10px] bg-amber-400 text-amber-950 font-black px-2 py-0.5 rounded-md">管理員</span>
-            <button onclick="logout()" class="text-xs bg-rose-500/20 hover:bg-rose-500/40 text-rose-300 px-2 py-1 rounded-lg ml-1 border border-rose-500/30 transition">登出</button>
+          <div id="userInfo" class="hidden flex items-center space-x-2 bg-white/95 px-3 py-1.5 rounded-xl border border-teal-500/10 shadow-xs">
+            <i class="fa-solid fa-user-circle text-teal-500 text-sm"></i>
+            <span id="userEmailDisplay" class="text-xs text-slate-600 font-medium font-mono"></span>
+            <span id="adminBadge" class="hidden text-[9px] bg-amber-100 text-amber-800 font-extrabold px-1.5 py-0.5 rounded-md border border-amber-200">管理員</span>
+            <button onclick="logout()" class="text-xs text-rose-500 hover:text-rose-600 bg-rose-50 px-2 py-1 rounded-lg ml-1 border border-rose-100 transition">登出</button>
           </div>
         </div>
       </div>
     </div>
   </header>
 
-  <!-- 主內容區 -->
-  <main class="max-w-7xl mx-auto px-4 py-8 flex-1 w-full space-y-8">
+  <!-- 主要內容區 -->
+  <main class="max-w-7xl mx-auto px-6 py-8 flex-1 w-full space-y-8">
 
-    <!-- 頂部 Tabs -->
-    <div class="flex border-b border-slate-800 space-x-6">
-      <button onclick="switchFrontTab('booking-section')" id="tabBtn-booking" class="tab-btn active pb-3 px-2 text-sm flex items-center gap-2 border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition">
-        <i class="fa-solid fa-calendar-days text-teal-400"></i> 📝 設備預約登記
+    <!-- 分頁選單 -->
+    <div class="flex border-b border-slate-200 space-x-6">
+      <button onclick="switchFrontTab('booking-section')" id="tabBtn-booking" class="tab-btn active pb-3 px-1 text-sm flex items-center gap-2 border-b-2 border-transparent text-slate-400 hover:text-slate-600 transition">
+        <i class="fa-solid fa-calendar-check text-teal-500"></i> 設備預約登記
       </button>
-      <button onclick="switchFrontTab('calendar-section')" id="tabBtn-calendar" class="tab-btn pb-3 px-2 text-sm flex items-center gap-2 border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition">
-        <i class="fa-solid fa-calendar-week text-teal-400"></i> 📅 當月借用概況
+      <button onclick="switchFrontTab('calendar-section')" id="tabBtn-calendar" class="tab-btn pb-3 px-1 text-sm flex items-center gap-2 border-b-2 border-transparent text-slate-400 hover:text-slate-600 transition">
+        <i class="fa-solid fa-calendar text-teal-500"></i> 當月借用月曆
       </button>
-      <button onclick="switchFrontTab('teachers-section')" id="tabBtn-teachers" class="tab-btn pb-3 px-2 text-sm flex items-center gap-2 border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition">
-        <i class="fa-solid fa-user-slash text-teal-400"></i> 📊 教師停借名單
+      <button onclick="switchFrontTab('teachers-section')" id="tabBtn-teachers" class="tab-btn pb-3 px-1 text-sm flex items-center gap-2 border-b-2 border-transparent text-slate-400 hover:text-slate-600 transition">
+        <i class="fa-solid fa-user-shield text-teal-500"></i> 教師停借名單 (唯讀)
       </button>
     </div>
 
     <!-- ================= 分頁 1: 預約登記 ================= -->
-    <div id="booking-section" class="tab-section-content space-y-6">
+    <div id="booking-section" class="tab-section-content space-y-8">
       <!-- 剩餘量看板 -->
-      <section class="bg-slate-950/40 border border-slate-800 rounded-2xl p-6 backdrop-blur-lg">
-        <div class="flex flex-col md:flex-row md:items-center justify-between pb-4 mb-6 border-b border-slate-800 gap-4">
+      <section class="tech-card rounded-2xl p-6 transition duration-300">
+        <div class="flex flex-col md:flex-row md:items-center justify-between pb-4 mb-5 border-b border-slate-100 gap-3">
           <div>
-            <h2 class="text-lg font-bold text-slate-100 flex items-center gap-2">
-              <i class="fa-solid fa-network-wired text-teal-400"></i>
-              各節設備剩餘量看板 (<span id="displaySelectedDate" class="text-teal-400 font-extrabold"></span>)
+            <h2 class="text-base font-bold text-slate-800 flex items-center gap-2">
+              <i class="fa-solid fa-chart-line text-teal-500"></i>
+              各節設備剩餘量看板 (<span id="displaySelectedDate" class="text-teal-600 font-extrabold"></span>)
             </h2>
-            <p id="totalStockSubtitle" class="text-xs text-slate-400 mt-1">正在載入資料庫庫存...</p>
+            <p id="totalStockSubtitle" class="text-xs text-slate-400 mt-1">載入庫存中...</p>
           </div>
-          <div class="flex flex-wrap gap-4 text-xs font-semibold">
-            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-md shadow-emerald-400/50"></span> 供應充足 (>30)</span>
-            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-md shadow-amber-400/50"></span> 緊張 (1-30)</span>
-            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-rose-500 shadow-md shadow-rose-500/50"></span> 額滿 (0)</span>
+          <div class="flex items-center gap-4 text-xs font-medium">
+            <span class="flex items-center gap-1.5 text-slate-500"><span class="w-2.5 h-2.5 rounded-full bg-teal-400 shadow-xs"></span> 供應充足</span>
+            <span class="flex items-center gap-1.5 text-slate-500"><span class="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-xs"></span> 緊張</span>
+            <span class="flex items-center gap-1.5 text-slate-500"><span class="w-2.5 h-2.5 rounded-full bg-rose-400 shadow-xs"></span> 額滿</span>
           </div>
         </div>
 
@@ -121,32 +131,32 @@
       <!-- 提交與詳情兩欄佈局 -->
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
         <!-- 提交借用表單 -->
-        <section class="lg:col-span-5 bg-slate-950/40 border border-slate-800 rounded-2xl p-6 backdrop-blur-lg flex flex-col justify-between">
+        <section class="lg:col-span-5 tech-card rounded-2xl p-6 transition duration-300 flex flex-col justify-between">
           <div>
-            <h2 class="text-lg font-bold text-slate-100 flex items-center gap-2 mb-6 pb-3 border-b border-slate-800">
-              <i class="fa-solid fa-square-plus text-teal-400"></i>
+            <h2 class="text-base font-bold text-slate-800 flex items-center gap-2 mb-5 pb-3 border-b border-slate-100">
+              <i class="fa-solid fa-clipboard-question text-teal-500"></i>
               提交借用申請
             </h2>
 
             <!-- 未登入提示 -->
-            <div id="loginRequiredAlert" class="mb-5 p-4 bg-teal-950/30 border border-teal-500/20 rounded-xl text-xs text-teal-300 flex items-center justify-between shadow-inner">
-              <span><i class="fa-solid fa-circle-exclamation mr-2 text-teal-400"></i> 請先登入您的學校 Google 帳戶。</span>
-              <button onclick="loginWithGoogle()" class="text-xs font-bold text-teal-400 hover:text-teal-300 underline transition">立即登入</button>
+            <div id="loginRequiredAlert" class="mb-5 p-4 bg-teal-50/50 border border-teal-500/10 rounded-xl text-xs text-teal-800 flex items-center justify-between">
+              <span><i class="fa-solid fa-info-circle mr-1.5 text-teal-500"></i> 請先使用學校 Google 帳號登入系統。</span>
+              <button onclick="loginWithGoogle()" class="text-xs font-bold text-teal-600 hover:text-teal-700 underline transition">立即登入</button>
             </div>
 
             <form id="bookingForm" onsubmit="handleFormSubmit(event)" class="space-y-4">
               <div class="grid grid-cols-2 gap-4">
                 <!-- 借用老師 -->
                 <div>
-                  <label class="block text-xs font-bold text-slate-400 mb-1.5">借用老師 <span class="text-rose-400">*</span></label>
-                  <select id="teacherSelect" required class="w-full px-3 py-2.5 text-xs bg-slate-900 border border-slate-800 rounded-xl text-slate-200 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 focus:outline-none transition">
+                  <label class="block text-xs font-bold text-slate-500 mb-1.5">借用老師 <span class="text-rose-500">*</span></label>
+                  <select id="teacherSelect" required class="w-full px-3 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-700 focus:ring-1 focus:ring-teal-500 focus:border-teal-500 focus:outline-none transition">
                     <option value="" disabled selected>載入教師名單中...</option>
                   </select>
                 </div>
                 <!-- 借用課節 -->
                 <div>
-                  <label class="block text-xs font-bold text-slate-400 mb-1.5">借用課節 <span class="text-rose-400">*</span></label>
-                  <select id="lessonSelect" required onchange="updateRemainingPreview()" class="w-full px-3 py-2.5 text-xs bg-slate-900 border border-slate-800 rounded-xl text-slate-200 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 focus:outline-none transition">
+                  <label class="block text-xs font-bold text-slate-500 mb-1.5">借用課節 <span class="text-rose-500">*</span></label>
+                  <select id="lessonSelect" required onchange="updateRemainingPreview()" class="w-full px-3 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-700 focus:ring-1 focus:ring-teal-500 focus:border-teal-500 focus:outline-none transition">
                     <option value="1">第 1 節</option>
                     <option value="2">第 2 節</option>
                     <option value="3">第 3 節</option>
@@ -161,27 +171,27 @@
               <div class="grid grid-cols-2 gap-4">
                 <!-- 設備種類 -->
                 <div>
-                  <label class="block text-xs font-bold text-slate-400 mb-1.5">設備種類 <span class="text-rose-400">*</span></label>
-                  <select id="deviceType" required onchange="updateRemainingPreview()" class="w-full px-3 py-2.5 text-xs bg-slate-900 border border-slate-800 rounded-xl text-slate-200 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 focus:outline-none transition">
+                  <label class="block text-xs font-bold text-slate-500 mb-1.5">設備種類 <span class="text-rose-500">*</span></label>
+                  <select id="deviceType" required onchange="updateRemainingPreview()" class="w-full px-3 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-700 focus:ring-1 focus:ring-teal-500 focus:border-teal-500 focus:outline-none transition">
                     <option value="iPad">iPad</option>
                     <option value="Mobile">Mobile</option>
                   </select>
                 </div>
                 <!-- 借用數量 -->
                 <div>
-                  <label class="block text-xs font-bold text-slate-400 mb-1.5">
-                    借用數量 <span class="text-rose-400">*</span>
-                    <span id="stockBadge" class="text-[10px] font-black text-teal-400 ml-1">(尚餘: --)</span>
+                  <label class="block text-xs font-bold text-slate-500 mb-1.5">
+                    借用數量 <span class="text-rose-500">*</span>
+                    <span id="stockBadge" class="text-[10px] font-bold text-teal-600 ml-1">(尚餘: --)</span>
                   </label>
-                  <input type="number" id="quantity" required min="1" max="150" placeholder="輸入數量" class="w-full px-3 py-2 text-xs bg-slate-900 border border-slate-800 rounded-xl text-slate-200 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 focus:outline-none transition">
+                  <input type="number" id="quantity" required min="1" max="150" placeholder="輸入數量" class="w-full px-3 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-700 focus:ring-1 focus:ring-teal-500 focus:border-teal-500 focus:outline-none transition">
                 </div>
               </div>
 
               <div class="grid grid-cols-3 gap-3">
                 <!-- 班別 -->
                 <div>
-                  <label class="block text-xs font-bold text-slate-400 mb-1.5">班別 <span class="text-rose-400">*</span></label>
-                  <select id="className" required class="w-full px-2 py-2.5 text-xs bg-slate-900 border border-slate-800 rounded-xl text-slate-200 focus:border-teal-500 focus:outline-none transition">
+                  <label class="block text-xs font-bold text-slate-500 mb-1.5">班別 <span class="text-rose-500">*</span></label>
+                  <select id="className" required class="w-full px-2 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-700 focus:ring-1 focus:ring-teal-500 focus:outline-none transition">
                     <option value="" disabled selected>請選擇...</option>
                     <option value="1A">1A</option><option value="1B">1B</option><option value="1C">1C</option><option value="1D">1D</option>
                     <option value="2A">2A</option><option value="2B">2B</option><option value="2C">2C</option><option value="2D">2D</option>
@@ -194,8 +204,8 @@
                 </div>
                 <!-- 科目 -->
                 <div>
-                  <label class="block text-xs font-bold text-slate-400 mb-1.5">科目 <span class="text-rose-400">*</span></label>
-                  <select id="subject" required class="w-full px-2 py-2.5 text-xs bg-slate-900 border border-slate-800 rounded-xl text-slate-200 focus:border-teal-500 focus:outline-none transition">
+                  <label class="block text-xs font-bold text-slate-500 mb-1.5">科目 <span class="text-rose-500">*</span></label>
+                  <select id="subject" required class="w-full px-2 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-700 focus:ring-1 focus:ring-teal-500 focus:outline-none transition">
                     <option value="" disabled selected>請選擇...</option>
                     <option value="中文">中文</option><option value="英文">英文</option><option value="數學">數學</option>
                     <option value="綜合科學">綜合科學</option><option value="物理">物理</option><option value="化學">化學</option><option value="生物">生物</option>
@@ -208,10 +218,10 @@
                 </div>
                 <!-- 地點 -->
                 <div>
-                  <label class="block text-xs font-bold text-slate-400 mb-1.5">地點/房號 <span class="text-rose-400">*</span></label>
-                  <select id="room" required class="w-full px-2 py-2.5 text-xs bg-slate-900 border border-slate-800 rounded-xl text-slate-200 focus:border-teal-500 focus:outline-none transition">
+                  <label class="block text-xs font-bold text-slate-500 mb-1.5">地點/房號 <span class="text-rose-500">*</span></label>
+                  <select id="room" required class="w-full px-2 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-700 focus:ring-1 focus:ring-teal-500 focus:outline-none transition">
                     <option value="" disabled selected>請選擇...</option>
-                    <optgroup label="── 特別室 / 實驗室 ──" class="bg-slate-900 text-slate-400">
+                    <optgroup label="── 特別室 / 實驗室 ──">
                       <option value="地理室">地理室</option>
                       <option value="ART I">ART I</option>
                       <option value="ART II">ART II</option>
@@ -228,7 +238,7 @@
                       <option value="禮堂">禮堂</option>
                       <option value="502室 資源班">普通課室</option>
                     </optgroup>
-                    <optgroup label="── 常規班級課室 ──" class="bg-slate-900 text-slate-400">
+                    <optgroup label="── 常規班級課室 ──">
                       <option value="1A">1A</option><option value="1B">1B</option><option value="1C">1C</option><option value="1D">1D</option>
                       <option value="2A">2A</option><option value="2B">2B</option><option value="2C">2C</option><option value="2D">2D</option>
                       <option value="3A">3A</option><option value="3B">3B</option><option value="3C">3C</option><option value="3D">3D</option>
@@ -241,13 +251,13 @@
               </div>
 
               <div>
-                <label class="block text-xs font-bold text-slate-400 mb-1.5">備註 / 特殊需求 (選填)</label>
-                <input type="text" id="remarks" placeholder="如需 Apple Pencil 或特定充電箱等" class="w-full px-3 py-2.5 text-xs bg-slate-900 border border-slate-800 rounded-xl text-slate-200 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 focus:outline-none transition">
+                <label class="block text-xs font-bold text-slate-500 mb-1.5">備註 / 特殊需求 (選填)</label>
+                <input type="text" id="remarks" placeholder="如需 Apple Pencil 或特定充電箱等" class="w-full px-3 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-700 focus:ring-1 focus:ring-teal-500 focus:border-teal-500 focus:outline-none transition">
               </div>
 
-              <div class="bg-teal-950/20 border border-teal-500/10 rounded-xl p-4 text-xs text-slate-300 space-y-1.5 shadow-inner">
-                <p class="font-bold text-teal-400 flex items-center gap-1.5">
-                  <i class="fa-solid fa-triangle-exclamation"></i> 借用規則提醒：
+              <div class="bg-teal-50/40 border border-teal-500/5 rounded-xl p-4 text-xs text-slate-500 space-y-1">
+                <p class="font-bold text-teal-800 flex items-center gap-1.5">
+                  <i class="fa-solid fa-circle-info text-teal-600"></i> 借用規則提醒：
                 </p>
                 <ul class="list-disc list-inside space-y-0.5 text-[11px] text-slate-400">
                   <li>採取先到先得原則，超出則登記為候補。</li>
@@ -257,39 +267,39 @@
             </form>
           </div>
 
-          <button type="submit" form="bookingForm" id="submitBtn" class="mt-4 w-full bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-slate-950 font-extrabold py-3 px-4 rounded-xl shadow-lg shadow-teal-500/10 transition transform active:scale-95 flex items-center justify-center gap-2">
-            <i class="fa-solid fa-paper-plane"></i> 確認提交借用登記
+          <button type="submit" form="bookingForm" id="submitBtn" class="mt-4 w-full bg-teal-600 hover:bg-teal-500 text-white font-semibold py-3 px-4 rounded-xl shadow-sm transition transform active:scale-95 flex items-center justify-center gap-1.5 text-xs">
+            <i class="fa-solid fa-paper-plane text-[10px]"></i> 確認提交借用登記
           </button>
         </section>
 
         <!-- 當日借用清單 -->
-        <section class="lg:col-span-7 bg-slate-950/40 border border-slate-800 rounded-2xl p-6 backdrop-blur-lg flex flex-col h-[580px]">
-          <div class="flex items-center justify-between mb-6 pb-3 border-b border-slate-800">
-            <h2 class="text-lg font-bold text-slate-100 flex items-center gap-2">
-              <i class="fa-solid fa-list-check text-teal-400"></i>
+        <section class="lg:col-span-7 tech-card rounded-2xl p-6 transition duration-300 flex flex-col h-[580px]">
+          <div class="flex items-center justify-between mb-5 pb-3 border-b border-slate-100">
+            <h2 class="text-base font-bold text-slate-800 flex items-center gap-2">
+              <i class="fa-solid fa-clipboard-list text-teal-500"></i>
               當日借用詳情清單
             </h2>
-            <span id="recordCount" class="text-xs bg-slate-800 text-teal-300 font-semibold px-3 py-1 rounded-full border border-teal-500/10">共 0 筆記錄</span>
+            <span id="recordCount" class="text-[10px] bg-slate-100 text-slate-600 font-bold px-3 py-1 rounded-full">共 0 筆記錄</span>
           </div>
 
-          <div class="overflow-y-auto flex-1 custom-scrollbar">
-            <table class="w-full text-left text-xs text-slate-300">
-              <thead class="bg-slate-900/60 text-teal-400 uppercase font-bold sticky top-0 border-b border-slate-800">
+          <div class="overflow-y-auto flex-1 scrollbar-thin">
+            <table class="w-full text-left text-xs text-slate-500">
+              <thead class="bg-slate-50/50 text-slate-600 font-bold sticky top-0 border-b border-slate-100">
                 <tr>
-                  <th class="py-3 px-4">課節</th>
-                  <th class="py-3 px-4">老師</th>
-                  <th class="py-3 px-4">設備 / 數量</th>
-                  <th class="py-3 px-4">班別 / 科目</th>
-                  <th class="py-3 px-4">地點</th>
-                  <th class="py-3 px-4 text-center">操作</th>
+                  <th class="py-3 px-3">課節</th>
+                  <th class="py-3 px-3">老師</th>
+                  <th class="py-3 px-3">設備 / 數量</th>
+                  <th class="py-3 px-3">班別 / 科目</th>
+                  <th class="py-3 px-3">地點</th>
+                  <th class="py-3 px-3 text-center">操作</th>
                 </tr>
               </thead>
-              <tbody id="bookingsTableBody" class="divide-y divide-slate-800/40 font-normal">
+              <tbody id="bookingsTableBody" class="divide-y divide-slate-100/60 font-normal">
                 <!-- 表格內容由 JS 動態生成 -->
               </tbody>
             </table>
-            <div id="emptyMessage" class="hidden text-center py-20 text-slate-500">
-              <i class="fa-solid fa-inbox text-4xl mb-3 text-slate-600"></i>
+            <div id="emptyMessage" class="hidden text-center py-20 text-slate-400">
+              <i class="fa-solid fa-calendar-xmark text-3xl mb-2 text-slate-300"></i>
               <p class="text-sm">本日該時段暫無任何借用記錄</p>
             </div>
           </div>
@@ -297,22 +307,22 @@
       </div>
     </div>
 
-    <!-- ================= 分頁 2: 教師欠取統計與停借公告 (唯讀) ================= -->
-    <div id="teachers-section" class="tab-section-content hidden bg-slate-950/40 border border-slate-800 p-6 rounded-2xl shadow-sm backdrop-blur-lg space-y-6">
-      <div class="flex justify-between items-center border-b border-slate-800 pb-4">
+    <!-- ================= 分頁 2: 教師欠取統計與停借公告 ================= -->
+    <div id="teachers-section" class="tab-section-content hidden tech-card p-6 rounded-2xl transition duration-300 space-y-6">
+      <div class="flex justify-between items-center border-b border-slate-100 pb-4">
         <div>
-          <h2 class="text-lg font-bold text-slate-100 flex items-center gap-2">
-            <i class="fa-solid fa-users-slash text-rose-500"></i>
-            全校教師欠取次數統計與停借狀態
+          <h2 class="text-base font-bold text-slate-800 flex items-center gap-2">
+            <i class="fa-solid fa-user-xmark text-rose-500"></i>
+            全校教師欠取次數統計與停借狀態 (資訊公示)
           </h2>
           <p class="text-xs text-slate-400 mt-1">此名單由系統即時更新。累計欠取滿 2 次者將暫停借用權限。</p>
         </div>
-        <span id="frontSuspendedCount" class="text-xs bg-rose-500/10 text-rose-400 border border-rose-500/20 px-3 py-1 rounded-full font-semibold">0 位停借中</span>
+        <span id="frontSuspendedCount" class="text-xs bg-rose-50 text-rose-600 border border-rose-100 px-3 py-1 rounded-full font-bold">0 位停借中</span>
       </div>
 
       <div class="overflow-x-auto">
-        <table class="w-full text-left text-xs text-slate-300">
-          <thead class="bg-slate-900/60 text-teal-400 uppercase font-bold border-b border-slate-800">
+        <table class="w-full text-left text-xs text-slate-500">
+          <thead class="bg-slate-50/50 text-slate-600 font-bold border-b border-slate-100">
             <tr>
               <th class="py-3.5 px-4">老師姓名</th>
               <th class="py-3.5 px-4">累計欠取次數</th>
@@ -320,7 +330,7 @@
               <th class="py-3.5 px-4">停借截止日期</th>
             </tr>
           </thead>
-          <tbody id="frontTeachersTableBody" class="divide-y divide-slate-800/40">
+          <tbody id="frontTeachersTableBody" class="divide-y divide-slate-100">
             <!-- 動態生成 -->
           </tbody>
         </table>
@@ -328,20 +338,20 @@
     </div>
 
     <!-- ================= 分頁 3: 當月借用概況月曆 ================= -->
-    <div id="calendar-section" class="tab-section-content hidden bg-slate-950/40 border border-slate-800 p-6 rounded-2xl shadow-sm backdrop-blur-lg space-y-6">
-      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-slate-800 pb-4 gap-4">
+    <div id="calendar-section" class="tab-section-content hidden tech-card p-6 rounded-2xl transition duration-300 space-y-6">
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-slate-100 pb-4 gap-3">
         <div>
-          <h2 class="text-lg font-bold text-slate-100 flex items-center gap-2">
-            <i class="fa-solid fa-calendar-week text-teal-400"></i>
+          <h2 class="text-base font-bold text-slate-800 flex items-center gap-2">
+            <i class="fa-solid fa-calendar-alt text-teal-500"></i>
             全校當月設備借用分佈月曆
           </h2>
           <p class="text-xs text-slate-400 mt-1">點擊任何日期，可直接快速跳轉查詢該日預約詳情。</p>
         </div>
         <!-- 月份切換器 -->
-        <div class="flex items-center space-x-2 bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-850">
-          <button onclick="changeMonth(-1)" class="text-teal-400 hover:text-teal-300 font-bold px-1.5 transition"><i class="fa-solid fa-chevron-left"></i></button>
-          <span id="calendarMonthTitle" class="text-sm font-bold text-slate-200 min-w-[100px] text-center font-mono">2026 年 09 月</span>
-          <button onclick="changeMonth(1)" class="text-teal-400 hover:text-teal-300 font-bold px-1.5 transition"><i class="fa-solid fa-chevron-right"></i></button>
+        <div class="flex items-center space-x-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100">
+          <button onclick="changeMonth(-1)" class="text-teal-600 hover:text-teal-700 font-bold px-1.5 transition"><i class="fa-solid fa-chevron-left text-xs"></i></button>
+          <span id="calendarMonthTitle" class="text-xs font-bold text-slate-700 min-w-[100px] text-center font-mono">2026 年 09 月</span>
+          <button onclick="changeMonth(1)" class="text-teal-600 hover:text-teal-700 font-bold px-1.5 transition"><i class="fa-solid fa-chevron-right text-xs"></i></button>
         </div>
       </div>
 
@@ -349,7 +359,7 @@
       <div class="overflow-x-auto">
         <div class="min-w-[700px]">
           <!-- 星期標頭 -->
-          <div class="grid grid-cols-7 gap-2 text-center text-xs font-bold text-slate-400 pb-3 border-b border-slate-800">
+          <div class="grid grid-cols-7 gap-2 text-center text-[10px] font-bold text-slate-400 pb-3 border-b border-slate-100">
             <div>星期日</div><div>星期一</div><div>星期二</div><div>星期三</div><div>星期四</div><div>星期五</div><div>星期六</div>
           </div>
           <!-- 日期格子 -->
@@ -361,7 +371,7 @@
     </div>
   </main>
 
-  <footer class="bg-slate-950 border-t border-slate-800 py-4 text-center text-xs text-slate-500">
+  <footer class="bg-white/40 border-t border-slate-100 py-4 text-center text-xs text-slate-400">
     卍慈中學．數字教育組 · iPad & 行動設備借用管理系統
   </footer>
 

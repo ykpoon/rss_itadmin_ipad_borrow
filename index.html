@@ -351,15 +351,20 @@
     </div>
   </main>
 
-  <footer class="bg-white border-t border-slate-200 py-3 text-ce<!-- 引入 Supabase JS SDK -->
+  <!-- 💡 已修正：完美關閉的 Footer 與正確載入的 Script 順序 -->
+  <footer class="bg-white border-t border-slate-200 py-3 text-center text-xs text-slate-500">
+    卍慈中學．數字教育組 · iPad & 行動設備借用管理系統
+  </footer>
+
   <!-- 引入 Supabase JS Client -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-  <!-- 引入我們上一步建立的共用 Supabase 連線檔 -->
+  <!-- 引入共用 Supabase 連線檔 -->
   <script src="supabase-config.js"></script>
 
-  <!-- 引入我們剛剛建立的前台專屬 JS 邏輯檔 -->
+  <!-- 引入前台專屬 JS 邏輯檔 -->
   <script src="index.js"></script>
 </body>
 </html>
+
 

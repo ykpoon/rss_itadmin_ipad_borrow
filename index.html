@@ -352,13 +352,14 @@
   </main>
 
   <footer class="bg-white border-t border-slate-200 py-3 text-ce<!-- 引入 Supabase JS SDK -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- 引入 Supabase JS Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-<!-- 💡 新增：引入我們剛剛建立的共用設定檔 -->
-<script src="supabase-config.js"></script>
+  <!-- 引入我們上一步建立的共用 Supabase 連線檔 -->
+  <script src="supabase-config.js"></script>
 
-<!-- 💡 新增：將來我們會把 index.js 的邏輯放在這裡（我們在下一步會做這個） -->
-<script src="index.js"></script>
-
+  <!-- 引入我們剛剛建立的前台專屬 JS 邏輯檔 -->
+  <script src="index.js"></script>
 </body>
 </html>
+

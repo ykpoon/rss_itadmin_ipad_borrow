@@ -449,29 +449,53 @@
       }
     }
 
-    // ================= 5. 全校物資設定 (直讀直寫) =================
-    async function loadAdminResources() {
-      const { data } = await _supabase.from('resources').select('*');
-      if (data) {
-        data.forEach(r => {
-          if (r.name === 'iPad') document.getElementById('adminIpadStock').value = r.total_qty;
-          if (r.name === 'Mobile') document.getElementById('adminMobileStock').value = r.total_qty;
-        });
-      }
+ // ================= 5. 全校物資設定 (優化後的更新邏輯) =================
+async function updateResourcesStock(event) {
+  event.preventDefault();
+  
+  const submitBtn = event.target.querySelector('button[type="submit"]');
+  const originalText = submitBtn.innerHTML;
+  
+  // 💡 加上讀取中狀態，防止重複提交
+  submitBtn.disabled = true;
+  submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> 正在套用更新...';
+
+  const ipadVal = parseInt(document.getElementById('adminIpadStock').value);
+  const mobileVal = parseInt(document.getElementById('adminMobileStock').value);
+
+  try {
+    // 💡 確保 iPad 總量更新完成
+    const { data: data1, error: error1 } = await _supabase
+      .from('resources')
+      .update({ total_qty: ipadVal })
+      .eq('name', 'iPad')
+      .select(); // 💡 加上 select() 能確保 RLS update 成功回傳資料
+
+    // 💡 確保 Mobile 總量更新完成
+    const { data: data2, error: error2 } = await _supabase
+      .from('resources')
+      .update({ total_qty: mobileVal })
+      .eq('name', 'Mobile')
+      .select();
+
+    if (error1 || error2) {
+      throw new Error(error1?.message || error2?.message || "更新失敗，請檢查 RLS Policy 權限");
     }
 
-    async function updateResourcesStock(event) {
-      event.preventDefault();
-      const ipadVal = parseInt(document.getElementById('adminIpadStock').value);
-      const mobileVal = parseInt(document.getElementById('adminMobileStock').value);
-
-      const res1 = await _supabase.from('resources').update({ total_qty: ipadVal }).eq('name', 'iPad');
-      const res2 = await _supabase.from('resources').update({ total_qty: mobileVal }).eq('name', 'Mobile');
-
-      if (res1.error || res2.error) alert('❌ 儲存失敗：' + (res1.error?.message || res2.error?.message));
-      else alert('✅ 全校物資總量已成功更新！前台已即時同步套用新上限。');
+    if (!data1?.length || !data2?.length) {
+      throw new Error("更新成功，但資料庫未受影響（請檢查資源表中是否存在 'iPad' 和 'Mobile' 欄位）");
     }
-    // ==========================================
+
+    alert('✅ 全校物資總量已成功更新！前台已即時同步套用新上限。');
+  } catch (err) {
+    console.error("更新庫存出錯:", err);
+    alert('❌ 儲存失敗：' + err.message);
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = originalText;
+  }
+}
+
   </script>
 </body>
 </html>

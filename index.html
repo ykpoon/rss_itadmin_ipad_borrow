@@ -328,14 +328,14 @@
     let currentBookings = [];
     let teachersList = [];
 
-    // ================= 2. 初始化 =================
+      // ================= 2. 初始化 =================
     document.addEventListener('DOMContentLoaded', async () => {
       const dateInput = document.getElementById('selectDate');
       dateInput.value = getTodayString();
       dateInput.addEventListener('change', fetchAndRender);
 
       checkAuth();
-      loadResources();
+      await loadResources(); // 💡 確保先讀取到庫存再進行後續渲染
       loadTeachers();
       fetchAndRender();
       setupRealtime();
@@ -436,65 +436,34 @@
       location.reload();
     }
 
-    function setupRealtime() {
-      _supabase
-        .channel('public:bookings')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
-          fetchAndRender();
-        })
-        .subscribe();
-
-      _supabase
-        .channel('public:teachers')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'teachers' }, () => {
-          loadTeachers();
-        })
-        .subscribe();
-
-      _supabase
-        .channel('public:resources')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'resources' }, async () => {
-          await loadResources();
-          renderDashboard();
-          updateRemainingPreview();
-        })
-        .subscribe();
-
-      _supabase
-        .channel('public:admins')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'admins' }, async () => {
-          if (currentUser) await updateAuthUI(currentUser);
-        })
-        .subscribe();
-    }
-
+    // ================= 3. 動態物資總量 =================
     async function loadResources() {
-  try {
-    // 💡 從 resources 資料表獲取當前 iPad 與 Mobile 的全校基準總量
-    const { data, error } = await _supabase.from('resources').select('name, total_qty');
-    
-    if (error) throw error;
+      try {
+        // 💡 從 resources 資料表獲取當前 iPad 與 Mobile 的全校基準總量
+        const { data, error } = await _supabase.from('resources').select('name, total_qty');
+        
+        if (error) throw error;
 
-    if (data && data.length > 0) {
-      data.forEach(item => {
-        if (item.name === 'iPad') totalStock.iPad = item.total_qty;
-        if (item.name === 'Mobile') totalStock.Mobile = item.total_qty;
-      });
+        if (data && data.length > 0) {
+          data.forEach(item => {
+            if (item.name === 'iPad') totalStock.iPad = item.total_qty;
+            if (item.name === 'Mobile') totalStock.Mobile = item.total_qty;
+          });
+        }
+      } catch (e) {
+        console.warn("❌ 載入資源庫存出錯:", e.message);
+      }
+
+      // 💡 更新前台看板的「全校總量基準」文字提示
+      const subtitleEl = document.getElementById('totalStockSubtitle');
+      if (subtitleEl) {
+        subtitleEl.textContent = `全校總量基準：iPad ${totalStock.iPad} 部 ｜ Mobile ${totalStock.Mobile} 部`;
+      }
+      
+      // 💡 重新渲染看板與即時預覽數量限制
+      renderDashboard();
+      updateRemainingPreview();
     }
-  } catch (e) {
-    console.warn("❌ 載入資源庫存出錯:", e.message);
-  }
-
-  // 💡 更新前台看板的「全校總量基準」文字提示
-  const subtitleEl = document.getElementById('totalStockSubtitle');
-  if (subtitleEl) {
-    subtitleEl.textContent = `全校總量基準：iPad ${totalStock.iPad} 部 ｜ Mobile ${totalStock.Mobile} 部`;
-  }
-  
-  // 💡 重新渲染看板與即時預覽數量限制
-  renderDashboard();
-  updateRemainingPreview();
-}
 
     // ================= 4. 載入教師名單 =================
     async function loadTeachers() {
@@ -559,38 +528,171 @@
     }
 
     // ================= 5. 實時事件監聽 (Realtime) =================
-function setupRealtime() {
-  // 監聽 bookings 資料表：若有任何新增/刪除/修改，即時更新當前剩餘量
-  _supabase
-    .channel('public:bookings')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
-      fetchAndRender();
-    })
-    .subscribe();
+    function setupRealtime() {
+      // 監聽 bookings 資料表：若有任何新增/刪除/修改，即時更新當前剩餘量
+      _supabase
+        .channel('public:bookings')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
+          fetchAndRender();
+        })
+        .subscribe();
 
-  _supabase
-    .channel('public:teachers')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'teachers' }, () => {
-      loadTeachers();
-    })
-    .subscribe();
+      _supabase
+        .channel('public:teachers')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'teachers' }, () => {
+          loadTeachers();
+        })
+        .subscribe();
 
-  // 💡 監聽 resources 資料表：當管理員在後台更新物資總量時，前台秒速同步並重新計算
-  _supabase
-    .channel('public:resources')
-    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'resources' }, async (payload) => {
-      console.log('🔔 偵測到管理員變更了後台物資總量！', payload.new);
-      await loadResources(); // 自動重新載入資源，並觸發 renderDashboard() 與 updateRemainingPreview()
-    })
-    .subscribe();
+      // 💡 監聽 resources 資料表：當管理員在後台更新物資總量時，前台秒速同步並重新計算
+      _supabase
+        .channel('public:resources')
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'resources' }, async (payload) => {
+          console.log('🔔 偵測到管理員變更了後台物資總量！', payload.new);
+          await loadResources(); // 自動重新載入資源，並重新計算與渲染看板
+        })
+        .subscribe();
 
-  _supabase
-    .channel('public:admins')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'admins' }, async () => {
-      if (currentUser) await updateAuthUI(currentUser);
-    })
-    .subscribe();
-}
+      _supabase
+        .channel('public:admins')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'admins' }, async () => {
+          if (currentUser) await updateAuthUI(currentUser);
+        })
+        .subscribe();
+    }
+
+    // ================= 6. 讀取預約與計算庫存 =================
+    async function fetchAndRender() {
+      const selectedDate = document.getElementById('selectDate').value;
+      document.getElementById('displaySelectedDate').textContent = formatDateWithWeekday(selectedDate);
+
+      try {
+        const { data, error } = await _supabase
+          .from('bookings')
+          .select('*')
+          .eq('date', selectedDate);
+
+        if (!error && data) {
+          currentBookings = data;
+        }
+      } catch (e) {
+        console.warn("讀取預約資料出錯", e);
+      }
+
+      renderDashboard();
+      renderTable();
+      updateRemainingPreview();
+    }
+
+    function getRemainingStock(lesson, device) {
+      const borrowed = currentBookings
+        .filter(b => b.lesson === parseInt(lesson) && b.device_type === device)
+        .reduce((sum, b) => sum + b.quantity, 0);
+      const total = totalStock[device] || 0;
+      return Math.max(0, total - borrowed);
+    }
+
+    function updateRemainingPreview() {
+      const lesson = document.getElementById('lessonSelect').value;
+      const device = document.getElementById('deviceType').value;
+      const remaining = getRemainingStock(lesson, device);
+
+      document.getElementById('stockBadge').textContent = `(尚餘: ${remaining} 部)`;
+      const qtyInput = document.getElementById('quantity');
+      qtyInput.max = remaining;
+    }
+
+    function switchFrontTab(sectionId) {
+      document.querySelectorAll('.tab-section-content').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.tab-btn').forEach(el => {
+        el.classList.remove('border-indigo-600', 'text-indigo-600', 'font-bold');
+        el.classList.add('border-transparent', 'text-slate-500');
+      });
+
+      document.getElementById(sectionId).classList.remove('hidden');
+      const activeBtn = document.getElementById(`tabBtn-${sectionId.replace('-section', '')}`);
+      activeBtn.classList.add('border-indigo-600', 'text-indigo-600', 'font-bold');
+      activeBtn.classList.remove('border-transparent', 'text-slate-500');
+    }
+
+    function renderDashboard() {
+      const grid = document.getElementById('lessonsGrid');
+      grid.innerHTML = '';
+
+      for (let l = 1; l <= 7; l++) {
+        const remIpad = getRemainingStock(l, 'iPad');
+        const remMobile = getRemainingStock(l, 'Mobile');
+
+        const ipadColor = remIpad > 30 ? 'text-emerald-600 bg-emerald-50 border-emerald-200' : (remIpad > 0 ? 'text-amber-600 bg-amber-50 border-amber-200' : 'text-rose-600 bg-rose-50 border-rose-200');
+        const mobileColor = remMobile > 15 ? 'text-emerald-600 bg-emerald-50 border-emerald-200' : (remMobile > 0 ? 'text-amber-600 bg-amber-50 border-amber-200' : 'text-rose-600 bg-rose-50 border-rose-200');
+
+        const card = document.createElement('div');
+        card.className = "bg-slate-50 border border-slate-200 rounded-lg p-2.5 flex flex-col justify-between shadow-xs";
+        card.innerHTML = `
+          <div class="text-xs font-bold text-slate-700 mb-1.5 pb-1 border-b border-slate-200 flex justify-between items-center">
+            <span>${LESSON_NAMES[l]}</span>
+          </div>
+          <div class="space-y-1 text-[11px]">
+            <div class="flex items-center justify-between px-1.5 py-0.5 rounded border ${ipadColor}">
+              <span class="font-medium">iPad</span>
+              <span class="font-bold">${remIpad} / ${totalStock.iPad}</span>
+            </div>
+            <div class="flex items-center justify-between px-1.5 py-0.5 rounded border ${mobileColor}">
+              <span class="font-medium">Mobile</span>
+              <span class="font-bold">${remMobile} / ${totalStock.Mobile}</span>
+            </div>
+          </div>
+        `;
+        grid.appendChild(card);
+      }
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById('bookingsTableBody');
+      const emptyMsg = document.getElementById('emptyMessage');
+      const countBadge = document.getElementById('recordCount');
+
+      countBadge.textContent = `共 ${currentBookings.length} 筆記錄`;
+      tbody.innerHTML = '';
+
+      if (currentBookings.length === 0) {
+        emptyMsg.classList.remove('hidden');
+        return;
+      }
+      emptyMsg.classList.add('hidden');
+
+      currentBookings.sort((a, b) => a.lesson - b.lesson);
+      currentBookings.forEach(item => {
+        const isOwner = currentUser && (item.user_email && currentUser.email === item.user_email);
+        const canDelete = isCurrentUserAdmin || isOwner;
+
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-50/80 transition";
+        tr.innerHTML = `
+          <td class="py-2.5 px-3 font-semibold text-slate-800">${LESSON_NAMES[item.lesson]}</td>
+          <td class="py-2.5 px-3 font-medium text-indigo-700">${item.teacher_name}</td>
+          <td class="py-2.5 px-3 text-slate-700 font-semibold">
+            <span class="${item.device_type === 'iPad' ? 'text-blue-600' : 'text-purple-600'}">
+              ${item.device_type} × ${item.quantity}
+            </span>
+          </td>
+          <td class="py-2.5 px-3">${item.class} (${item.subject})</td>
+          <td class="py-2.5 px-3">${item.room}</td>
+          <td class="py-2.5 px-3 text-center">
+            ${canDelete ? `
+              <button onclick="deleteBooking('${item.id}', '${item.teacher_name}')" class="text-rose-500 hover:text-rose-700 p-1 transition" title="取消登記">
+                <i class="fa-solid fa-trash-can"></i>
+              </button>
+            ` : `
+              <span class="text-slate-300 text-[11px] cursor-not-allowed" title="非本人登記，無權取消">
+                <i class="fa-solid fa-lock"></i>
+              </span>
+            `}
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
 
     // ================= 7. 提交借用表單 =================
     async function handleFormSubmit(event) {
@@ -675,97 +777,7 @@ function setupRealtime() {
         }
       }
     }
-    // 🌟 新增功能：全校物資總量與前台即時同步
-// ==========================================
 
-let globalStock = { iPad: 0, Mobile: 0 }; // 儲存全校總量的全域變數
-
-// 1. 從資料庫獲取當前設定的總量上限
-async function fetchTotalResources() {
-    try {
-        const { data, error } = await _supabase
-            .from('resources')
-            .select('name, total_qty');
-
-        if (error) throw error;
-
-        data.forEach(item => {
-            globalStock[item.name] = item.total_qty;
-        });
-        console.log('✅ 成功同步全校物資總量上限：', globalStock);
-    } catch (err) {
-        console.error('❌ 無法載入物資總量：', err.message);
-    }
-}
-
-// 2. 動態計算特定時段的【扣除後剩餘量】
-async function updateRemainingStock() {
-    // 💡 這裡對應你前台 HTML 的欄位元件
-    const deviceSelect = document.getElementById('deviceType') || document.querySelector('select[name="device_type"]');
-    const lessonSelect = document.getElementById('borrowLesson') || document.querySelector('select[name="lesson"]');
-    const quantityInput = document.getElementById('borrowQuantity') || document.querySelector('input[name="quantity"]');
-    
-    // 如果找不到元件就先跳出，避免程式壞掉
-    if (!lessonSelect || !deviceSelect) return;
-
-    const selectedDevice = deviceSelect.value || 'iPad'; 
-    const selectedLesson = lessonSelect.value; 
-    const targetDate = new Date().toISOString().split('T')[0]; // 當天日期 YYYY-MM-DD
-
-    if (!selectedLesson) return;
-
-    try {
-        // 撈出當天、該課節、該設備已被預約的總量
-        const { data, error } = await _supabase
-            .from('bookings')
-            .select('quantity')
-            .eq('date', targetDate)
-            .eq('lesson', selectedLesson)
-            .eq('device_type', selectedDevice);
-
-        if (error) throw error;
-
-        // 計算已借出總數
-        const borrowedQty = data.reduce((sum, item) => sum + (parseInt(item.quantity) || 0), 0);
-        
-        // 剩餘量 = 該設備總量 - 已借出量
-        const currentTotal = globalStock[selectedDevice] || 0;
-        const remainingQty = Math.max(0, currentTotal - borrowedQty);
-
-        // 💡 尋找網頁上顯示「尚餘: --」的文字區塊並更新它
-        // 這裡會嘗試尋找你畫面中包含 "尚餘" 或 "剩餘" 的文字元素
-        const allLabels = document.querySelectorAll('label, span, div');
-        allLabels.forEach(el => {
-            if (el.textContent.includes('尚餘') || el.textContent.includes('剩餘')) {
-                el.textContent = `尚餘: ${remainingQty}`;
-            }
-        });
-
-        // 限制使用者最大只能輸入剩餘的數量
-        if (quantityInput) quantityInput.max = remainingQty;
-
-    } catch (err) {
-        console.error('❌ 計算剩餘庫存失敗：', err.message);
-    }
-}
-
-// 3. 連動 Supabase Realtime 監聽（當後台改動時，前台秒速同步）
-function setupRealtimeSubscription() {
-    if (!_supabase) return;
-    _supabase
-        .channel('public:resources')
-        .on('postgres_changes', { 
-            event: 'UPDATE', 
-            schema: 'public', 
-            table: 'resources' 
-        }, async (payload) => {
-            console.log('🔔 偵測到管理員變更了後台物資總量！', payload.new);
-            const updatedResource = payload.new;
-            globalStock[updatedResource.name] = updatedResource.total_qty;
-            await updateRemainingStock(); // 馬上重新計算前台顯示
-        })
-        .subscribe();
-}
   </script>
 </body>
 </html>

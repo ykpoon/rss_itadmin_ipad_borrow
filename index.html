@@ -325,7 +325,7 @@
             <i class="fa-solid fa-calendar-week text-indigo-600"></i>
             全校當月設備借用分佈月曆
           </h2>
-          <p class="text-xs text-slate-500 mt-1">此月曆即時顯示當月每日的設備總借出量。點擊任何日期，可直接快速跳轉查詢該日預約詳情。</p>
+          <p class="text-xs text-slate-1000 mt-1">此月曆即時顯示當月每日的設備可借用量。點擊任何日期，可直接快速跳轉查詢該日預約詳情。</p>
         </div>
         <!-- 月份切換器 -->
         <div class="flex items-center space-x-2 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100">
@@ -741,7 +741,7 @@
       renderCalendar();
     }
 
-     // ================= 視覺化月曆邏輯 (已升級：單格內完整望哂 7 個節數的賸餘部數) =================
+      // ================= 視覺化月曆邏輯 (已更新：顯示完整名稱 ipad, Mobile 與 第 1 節 ~ 放學) =================
     function renderCalendar() {
       const grid = document.getElementById('calendarGrid');
       grid.innerHTML = '';
@@ -759,8 +759,16 @@
         grid.appendChild(empty);
       }
 
-      // 2. 建立課節名稱簡稱 (L1 代表 Lesson 1，Afterschool 代表放學)
-      const LESSON_SHORTS = { 1: 'L1', 2: 'L2', 3: 'L3', 4: 'L4', 5: 'L5', 6: 'L6', 7: '放學' };
+      // 💡 2. 將課節名稱改回完整的中文名稱
+      const LESSON_SHORTS = { 
+        1: '第 1 節', 
+        2: '第 2 節', 
+        3: '第 3 節', 
+        4: '第 4 節', 
+        5: '第 5 節', 
+        6: '第 6 節', 
+        7: '放學' 
+      };
 
       // 3. 動態生成當月的日期格子
       for (let day = 1; day <= totalDays; day++) {
@@ -793,16 +801,18 @@
           const ipadRem = Math.max(0, totalStock.iPad - ipadBorrowed);
           const mobileRem = Math.max(0, totalStock.Mobile - mobileBorrowed);
 
-          // 💡 視覺化顏色控制 (賸餘量多顯綠，少顯橙，額滿顯紅)
+          // 視覺化顏色控制 (賸餘量多顯綠，少顯橙，額滿顯紅)
           const ipadColor = ipadRem > 30 ? 'text-emerald-600 font-semibold' : (ipadRem > 0 ? 'text-amber-500 font-bold' : 'text-rose-500 font-bold');
           const mobileColor = mobileRem > 15 ? 'text-emerald-600 font-semibold' : (mobileRem > 0 ? 'text-amber-500 font-bold' : 'text-rose-500 font-bold');
 
           lessonsListHTML += `
             <div class="flex items-center justify-between py-0.5 border-b border-slate-100/50 last:border-0 text-[10px]">
-              <span class="font-bold text-slate-500 mr-1">${LESSON_SHORTS[l]}</span>
+              <!-- 💡 改為顯示完整的「第 X 節」中文標題 -->
+              <span class="font-extrabold text-slate-500 mr-1">${LESSON_SHORTS[l]}</span>
               <div class="flex items-center space-x-1.5">
-                <span class="${ipadColor}" title="iPad 尚餘">i:${ipadRem}</span>
-                <span class="${mobileColor}" title="Mobile 尚餘">m:${mobileRem}</span>
+                <!-- 💡 改為完整的 iPad / Mobile 標籤顯示 -->
+                <span class="${ipadColor}" title="iPad 尚餘">iPad: ${ipadRem}</span>
+                <span class="${mobileColor}" title="Mobile 尚餘">Mobile: ${mobileRem}</span>
               </div>
             </div>
           `;
@@ -812,10 +822,10 @@
           <!-- 日曆格頂部：日期數字與狀態標記 -->
           <div class="flex justify-between items-center pb-1 border-b border-slate-100">
             <span class="text-xs font-black ${isSelected ? 'text-indigo-700' : 'text-slate-700'}">${day} 日</span>
-            <span class="text-[9px] text-slate-400 font-medium">L1 ~ 放學</span>
+            <span class="text-[9px] text-slate-400 font-medium">賸餘基準</span>
           </div>
           
-          <!-- 日曆格中部：高集成 7 個課節 iPad 與 Mobile 的賸餘量數據 -->
+          <!-- 日曆格中部：高集成 7 個課節的賸餘量數據 -->
           <div class="flex-1 py-1 flex flex-col justify-center">
             ${lessonsListHTML}
           </div>

@@ -355,7 +355,7 @@
     卍慈中學．數字教育組 · iPad & 行動設備借用管理系統
   </footer>
 
-  <script>
+   <script>
     // ================= 1. 設定與連線 =================
     const SUPABASE_URL = 'https://gvysbmflwfidmifwepxz.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2eXNibWZsd2ZpZG1pZndlcHh6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkyNzM4OTEsImV4cCI6MjEwNDg0OTg5MX0.7W8fBnbmZ6nOWpZohPvo_zCprZ7Ef0jvbG11iJrywrU';
@@ -375,17 +375,81 @@
     let calendarDate = new Date(); // 紀錄月曆當前顯示的年月
     let monthlyBookings = [];      // 儲存當月所有的借用記錄以便統計
 
-    // ================= 2. 初始化 =================
+    // ================= 2. 初始化 (修正巢狀 DOM 監聽，完美融合) =================
     document.addEventListener('DOMContentLoaded', async () => {
       const dateInput = document.getElementById('selectDate');
       dateInput.value = getTodayString();
       dateInput.addEventListener('change', fetchAndRender);
 
+      // 💡 看板專屬小日曆與快速切換按鈕
+      const dashDatePicker = document.getElementById('dashboard-date-picker');
+      const dashPrevBtn = document.getElementById('dashboard-prev-day');
+      const dashNextBtn = document.getElementById('dashboard-next-day');
+
+      // 輔助函數：將 Date 物件轉換為 YYYY-MM-DD
+      function formatDateToYYYYMMDD(date) {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+      }
+
+      // 輔助函數：取得當前畫面上已選的 Date 物件 (防時區偏差)
+      function getSelectedDateObj() {
+        const val = dateInput.value || getTodayString();
+        return new Date(val.replace(/-/g, '/'));
+      }
+
+      // 更新日期核心函數：同步更新兩個 Date Input 並載入新資料
+      function changeSelectedDate(newDateStr) {
+        dateInput.value = newDateStr;
+        if (dashDatePicker) dashDatePicker.value = newDateStr;
+        
+        // 呼叫原本的 fetchAndRender()，即時刷新看板數據、表單與預約清單
+        fetchAndRender();
+      }
+
+      // 初始化看板小日曆設為與主日期一致
+      if (dashDatePicker) {
+        dashDatePicker.value = dateInput.value;
+        
+        // 監聽看板小日曆變更：當用戶點擊小月曆挑選日期時
+        dashDatePicker.addEventListener('change', (e) => {
+          const selected = e.target.value;
+          if (selected) {
+            changeSelectedDate(selected);
+          }
+        });
+      }
+
+      // 監聽「前一天」按鈕點擊
+      if (dashPrevBtn) {
+        dashPrevBtn.addEventListener('click', () => {
+          const current = getSelectedDateObj();
+          current.setDate(current.getDate() - 1);
+          changeSelectedDate(formatDateToYYYYMMDD(current));
+        });
+      }
+
+      // 監聽「後一天」按鈕點擊
+      if (dashNextBtn) {
+        dashNextBtn.addEventListener('click', () => {
+          const current = getSelectedDateObj();
+          current.setDate(current.getDate() + 1);
+          changeSelectedDate(formatDateToYYYYMMDD(current));
+        });
+      }
+
+      // 當頂部的主日期 (#selectDate) 改變時，同步更新看板小日曆的數值
+      dateInput.addEventListener('change', () => {
+        if (dashDatePicker) dashDatePicker.value = dateInput.value;
+      });
+
       try {
         await checkAuth();
         await loadResources(); 
         await loadTeachers();  
-        await fetchMonthlyData(); // 初始化載入月曆數據
+        await fetchMonthlyData(); // 💡 初始化載入當月月曆數據
         await fetchAndRender();
         setupRealtime();
       } catch (err) {
@@ -440,7 +504,6 @@
     }
 
     async function updateAuthUI(user) {
-      currentUser = user;
       const loginBtn = document.getElementById('loginBtn');
       const userInfo = document.getElementById('userInfo');
       const emailDisplay = document.getElementById('userEmailDisplay');
@@ -448,26 +511,28 @@
       const adminPortalBtn = document.getElementById('adminPortalBtn');
       const loginAlert = document.getElementById('loginRequiredAlert');
 
+      currentUser = user;
+
       if (user) {
-        loginBtn.classList.add('hidden');
-        userInfo.classList.remove('hidden');
-        emailDisplay.textContent = user.email;
-        loginAlert.classList.add('hidden');
+        if (loginBtn) loginBtn.classList.add('hidden');
+        if (userInfo) userInfo.classList.remove('hidden');
+        if (emailDisplay) emailDisplay.textContent = user.email;
+        if (loginAlert) loginAlert.classList.add('hidden');
 
         isCurrentUserAdmin = await checkIsAdminFromDB(user.email);
         if (isCurrentUserAdmin) {
-          adminBadge.classList.remove('hidden');
-          adminPortalBtn.classList.remove('hidden');
+          if (adminBadge) adminBadge.classList.remove('hidden');
+          if (adminPortalBtn) adminPortalBtn.classList.remove('hidden');
         } else {
-          adminBadge.classList.add('hidden');
-          adminPortalBtn.classList.add('hidden');
+          if (adminBadge) adminBadge.classList.add('hidden');
+          if (adminPortalBtn) adminPortalBtn.classList.add('hidden');
         }
       } else {
         isCurrentUserAdmin = false;
-        loginBtn.classList.remove('hidden');
-        userInfo.classList.add('hidden');
-        adminPortalBtn.classList.add('hidden');
-        loginAlert.classList.remove('hidden');
+        if (loginBtn) loginBtn.classList.remove('hidden');
+        if (userInfo) userInfo.classList.add('hidden');
+        if (adminPortalBtn) adminPortalBtn.classList.add('hidden');
+        if (loginAlert) loginAlert.classList.remove('hidden');
       }
     }
 
@@ -534,33 +599,35 @@
       }
 
       const select = document.getElementById('teacherSelect');
-      select.innerHTML = '<option value="" disabled selected>請選擇老師姓名...</option>';
-      
-      teachersList.forEach(teacher => {
-        const option = document.createElement('option');
-        option.value = teacher.name;
+      if (select) {
+        select.innerHTML = '<option value="" disabled selected>請選擇老師姓名...</option>';
+        
+        teachersList.forEach(teacher => {
+          const option = document.createElement('option');
+          option.value = teacher.name;
 
-        let currentlySuspended = false;
-        if (teacher.is_suspended) {
-          if (teacher.suspended_until) {
-            if (queryDateStr <= teacher.suspended_until) {
+          let currentlySuspended = false;
+          if (teacher.is_suspended) {
+            if (teacher.suspended_until) {
+              if (queryDateStr <= teacher.suspended_until) {
+                currentlySuspended = true;
+              }
+            } else {
               currentlySuspended = true;
             }
-          } else {
-            currentlySuspended = true;
           }
-        }
 
-        if (currentlySuspended) {
-          const until = teacher.suspended_until ? `至 ${teacher.suspended_until}` : '';
-          option.textContent = `⛔ ${teacher.name} (暫停借用 ${until})`.trim();
-          option.disabled = true;
-          option.classList.add('text-rose-500');
-        } else {
-          option.textContent = teacher.name;
-        }
-        select.appendChild(option);
-      });
+          if (currentlySuspended) {
+            const until = teacher.suspended_until ? `至 ${teacher.suspended_until}` : '';
+            option.textContent = `⛔ ${teacher.name} (暫停借用 ${until})`;
+            option.disabled = true;
+            option.classList.add('text-rose-500');
+          } else {
+            option.textContent = teacher.name;
+          }
+          select.appendChild(option);
+        });
+      }
 
       renderFrontTeachersTable();
     }
@@ -568,13 +635,15 @@
     function renderFrontTeachersTable() {
       const tbody = document.getElementById('frontTeachersTableBody');
       const badge = document.getElementById('frontSuspendedCount');
+      if (!tbody) return;
+
       tbody.innerHTML = '';
 
       const sorted = [...teachersList].sort((a, b) => 
         (b.is_suspended - a.is_suspended) || (b.missed_count - a.missed_count)
       );
 
-      badge.textContent = `${sorted.filter(t => t.is_suspended).length} 位停借中`;
+      if (badge) badge.textContent = `${sorted.filter(t => t.is_suspended).length} 位停借中`;
 
       sorted.forEach(t => {
         const tr = document.createElement('tr');
@@ -636,8 +705,11 @@
 
     // ================= 6. 讀取預約與計算庫存 =================
     async function fetchAndRender() {
-      const selectedDate = document.getElementById('selectDate').value;
-      document.getElementById('displaySelectedDate').textContent = formatDateWithWeekday(selectedDate);
+      const selectDateEl = document.getElementById('selectDate');
+      if (!selectDateEl) return;
+      const selectedDate = selectDateEl.value;
+      const displaySelectedDateEl = document.getElementById('displaySelectedDate');
+      if (displaySelectedDateEl) displaySelectedDateEl.textContent = formatDateWithWeekday(selectedDate);
 
       try {
         const { data: bookingsData, error: err1 } = await _supabase
@@ -682,17 +754,24 @@
     }
 
     function updateRemainingPreview() {
-      const lesson = document.getElementById('lessonSelect').value;
-      const device = document.getElementById('deviceType').value;
+      const lessonEl = document.getElementById('lessonSelect');
+      const deviceTypeEl = document.getElementById('deviceType');
+      if (!lessonEl || !deviceTypeEl) return;
+
+      const lesson = lessonEl.value;
+      const device = deviceTypeEl.value;
       const remaining = getRemainingStock(lesson, device);
 
-      document.getElementById('stockBadge').textContent = `(尚餘: ${remaining} 部)`;
+      const stockBadgeEl = document.getElementById('stockBadge');
+      if (stockBadgeEl) stockBadgeEl.textContent = `(尚餘: ${remaining} 部)`;
       
       const qtyInput = document.getElementById('quantity');
-      if (remaining > 0) {
-        qtyInput.max = remaining;
-      } else {
-        qtyInput.removeAttribute('max');
+      if (qtyInput) {
+        if (remaining > 0) {
+          qtyInput.max = remaining;
+        } else {
+          qtyInput.removeAttribute('max');
+        }
       }
     }
 
@@ -703,10 +782,14 @@
         el.classList.add('border-transparent', 'text-slate-500');
       });
 
-      document.getElementById(sectionId).classList.remove('hidden');
+      const sectionEl = document.getElementById(sectionId);
+      if (sectionEl) sectionEl.classList.remove('hidden');
+
       const activeBtn = document.getElementById(`tabBtn-${sectionId.replace('-section', '')}`);
-      activeBtn.classList.add('border-indigo-600', 'text-indigo-600', 'font-bold');
-      activeBtn.classList.remove('border-transparent', 'text-slate-500');
+      if (activeBtn) {
+        activeBtn.classList.add('border-indigo-600', 'text-indigo-600', 'font-bold');
+        activeBtn.classList.remove('border-transparent', 'text-slate-500');
+      }
     }
 
     // ================= 7. 視覺化月曆邏輯 =================
@@ -723,7 +806,8 @@
       const lastDay = new Date(year, month + 1, 0).getDate();
       const lastDayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
-      document.getElementById('calendarMonthTitle').textContent = `${year} 年 ${String(month + 1).padStart(2, '0')} 月`;
+      const titleEl = document.getElementById('calendarMonthTitle');
+      if (titleEl) titleEl.textContent = `${year} 年 ${String(month + 1).padStart(2, '0')} 月`;
 
       try {
         const { data: bookings, error: err1 } = await _supabase
@@ -756,6 +840,7 @@
 
     function renderCalendar() {
       const grid = document.getElementById('calendarGrid');
+      if (!grid) return;
       grid.innerHTML = '';
 
       const year = calendarDate.getFullYear();
@@ -778,8 +863,13 @@
 
         const card = document.createElement('div');
         card.onclick = () => {
-          document.getElementById('selectDate').value = dateStr;
-          fetchAndRender();
+          const selectDateEl = document.getElementById('selectDate');
+          if (selectDateEl) {
+            selectDateEl.value = dateStr;
+            // 觸發事件更新
+            const event = new Event('change');
+            selectDateEl.dispatchEvent(event);
+          }
           switchFrontTab('booking-section');
         };
 
@@ -830,6 +920,7 @@
 
     function renderDashboard() {
       const grid = document.getElementById('lessonsGrid');
+      if (!grid) return;
       grid.innerHTML = '';
 
       for (let l = 1; l <= 7; l++) {
@@ -870,15 +961,16 @@
       const tbody = document.getElementById('bookingsTableBody');
       const emptyMsg = document.getElementById('emptyMessage');
       const countBadge = document.getElementById('recordCount');
+      if (!tbody) return;
 
       countBadge.textContent = `共 ${currentBookings.length} 筆記錄`;
       tbody.innerHTML = '';
 
       if (currentBookings.length === 0) {
-        emptyMsg.classList.remove('hidden');
+        if (emptyMsg) emptyMsg.classList.remove('hidden');
         return;
       }
-      emptyMsg.classList.add('hidden');
+      if (emptyMsg) emptyMsg.classList.add('hidden');
 
       const activeBookings = [];
       const waitingBookings = [];
@@ -959,8 +1051,10 @@
       }
 
       const submitBtn = document.getElementById('submitBtn');
-      submitBtn.disabled = true;
-      submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 正在儲存...';
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 正在儲存...';
+      }
 
       const date = document.getElementById('selectDate').value;
       const lesson = parseInt(document.getElementById('lessonSelect').value);
@@ -974,8 +1068,10 @@
 
       if (!teacher_name) {
         alert('請先選擇借用老師！');
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
+        }
         return;
       }
 
@@ -995,8 +1091,10 @@
       if (isTeacherCurrentlySuspended) {
         const until = teacherRecord.suspended_until ? `至 ${teacherRecord.suspended_until}` : '';
         alert(`❌ 借用失敗：${teacher_name} 老師在 ${date} 當天仍處於停止借用期 (${until})！`);
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
+        }
         return;
       }
 
@@ -1004,13 +1102,15 @@
       let isWaiting = false;
 
       if (quantity > remaining) {
-        const confirmWait = confirm(`⚠️ 該節 ${device_type} 剩餘庫存為 ${remaining} 部（不足 ${quantity} 部）。\n\n您是否要將此預約排入【候補名單 (Waiting List)】？\n若當天有同事未前來取機，將依候補順序為您安排。`);
+        const confirmWait = confirm(`⚠️ 該節 ${device_type} 剩餘庫存為 ${remaining} 部（不足 ${quantity} 部）。\\n\\n您是否要將此預約排入【候補名單 (Waiting List)】？\\n若當天有同事未前來取機，將依候補順序為您安排。`);
         
         if (confirmWait) {
           isWaiting = true;
         } else {
-          submitBtn.disabled = false;
-          submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
+          }
           return;
         }
       }
@@ -1045,8 +1145,10 @@
         }
       }
 
-      submitBtn.disabled = false;
-      submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
+      }
     }
 
     // ================= 10. 取消借用 =================

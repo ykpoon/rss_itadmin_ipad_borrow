@@ -365,14 +365,17 @@
     let isCurrentUserAdmin = false;
 
     let totalStock = { iPad: 150, Mobile: 55 };
+    let dailyAdjustments = []; // 存放特定日期特別設定的物資總量
+    let monthlyAdjustments = []; // 儲存當月所有的每日庫存調節資料
     const LESSON_NAMES = { 1: '第 1 節', 2: '第 2 節', 3: '第 3 節', 4: '第 4 節', 5: '第 5 節', 6: '第 6 節', 7: '放學' };
     const WEEKDAY_NAMES = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
 
     let currentBookings = [];
     let teachersList = [];
+    let calendarDate = new Date(); // 紀錄月曆當前顯示的年月
+    let monthlyBookings = [];      // 儲存當月所有的借用記錄以便統計
 
-
- // ================= 2. 初始化 =================
+    // ================= 2. 初始化 =================
     document.addEventListener('DOMContentLoaded', async () => {
       const dateInput = document.getElementById('selectDate');
       dateInput.value = getTodayString();
@@ -382,7 +385,7 @@
         await checkAuth();
         await loadResources(); 
         await loadTeachers();  
-        await fetchMonthlyData(); // 💡 初始化載入月曆數據
+        await fetchMonthlyData(); // 初始化載入月曆數據
         await fetchAndRender();
         setupRealtime();
       } catch (err) {
@@ -402,7 +405,7 @@
       return `${dateStr} (${WEEKDAY_NAMES[d.getDay()]})`;
     }
 
-    // 🌟 純資料庫動態驗證管理員身分
+    // 純資料庫動態驗證管理員身分
     async function checkIsAdminFromDB(email) {
       if (!email || !_supabase) return false;
       try {
@@ -417,17 +420,16 @@
       }
     }
 
-    // 身分認證檢查 (即時監聽 OAuth 登入跳轉) (已修正錯位語法)
+    // 身分認證檢查 (即時監聽 OAuth 登入跳轉)
     async function checkAuth() {
       try {
         const { data: { session } } = await _supabase.auth.getSession();
         await updateAuthUI(session?.user || null);
 
-        // 讓監聽回傳，以便初始化中 await
         return new Promise((resolve) => {
           _supabase.auth.onAuthStateChange(async (_event, session) => {
             await updateAuthUI(session?.user || null);
-            renderTable(); // 💡 乾淨的重新渲染表格
+            renderTable(); // 重新渲染表格
             resolve();
           });
           resolve();
@@ -436,7 +438,6 @@
         console.error("Auth 初始化錯誤:", e);
       }
     }
-
 
     async function updateAuthUI(user) {
       currentUser = user;
@@ -453,7 +454,6 @@
         emailDisplay.textContent = user.email;
         loginAlert.classList.add('hidden');
 
-        // 向 admins 資料表查詢
         isCurrentUserAdmin = await checkIsAdminFromDB(user.email);
         if (isCurrentUserAdmin) {
           adminBadge.classList.remove('hidden');
@@ -494,9 +494,7 @@
     // ================= 3. 動態物資總量 =================
     async function loadResources() {
       try {
-        // 💡 從 resources 資料表獲取當前 iPad 與 Mobile 的全校基準總量
         const { data, error } = await _supabase.from('resources').select('name, total_qty');
-        
         if (error) throw error;
 
         if (data && data.length > 0) {
@@ -509,20 +507,17 @@
         console.warn("❌ 載入資源庫存出錯:", e.message);
       }
 
-      // 💡 更新前台看板的「全校總量基準」文字提示
       const subtitleEl = document.getElementById('totalStockSubtitle');
       if (subtitleEl) {
         subtitleEl.textContent = `全校總量基準：iPad ${totalStock.iPad} 部 ｜ Mobile ${totalStock.Mobile} 部`;
       }
       
-      // 💡 重新渲染看板與即時預覽數量限制
       renderDashboard();
       updateRemainingPreview();
     }
 
-      // ================= 4. 載入教師名單 (優化：動態判斷停借截止日期) =================
+    // ================= 4. 載入教師名單 =================
     async function loadTeachers() {
-      // 💡 獲取當前用戶在前台選取的查詢日期 (格式: YYYY-MM-DD)
       const selectedDateInput = document.getElementById('selectDate');
       const queryDateStr = selectedDateInput ? selectedDateInput.value : getTodayString();
 
@@ -545,16 +540,14 @@
         const option = document.createElement('option');
         option.value = teacher.name;
 
-        // 💡 核心邏輯：判斷該老師在「查詢當天」是否依然處於停借狀態
         let currentlySuspended = false;
         if (teacher.is_suspended) {
           if (teacher.suspended_until) {
-            // 比對選取日期與停借截止日期 (字串比對 YYYY-MM-DD 即可)
             if (queryDateStr <= teacher.suspended_until) {
-              currentlySuspended = true; // 仍在停借期內
+              currentlySuspended = true;
             }
           } else {
-            currentlySuspended = true; // 沒有設定截止日期，代表永久停借
+            currentlySuspended = true;
           }
         }
 
@@ -564,7 +557,6 @@
           option.disabled = true;
           option.classList.add('text-rose-500');
         } else {
-          // 💡 若已過期，選單中顯示為正常（移除 ⛔ 符號並允許點選）
           option.textContent = teacher.name;
         }
         select.appendChild(option);
@@ -603,15 +595,13 @@
 
     // ================= 5. 實時事件監聽 (Realtime) =================
     function setupRealtime() {
-      // 監聽 bookings 資料表：若有任何新增/刪除/修改，即時更新當前剩餘量
       _supabase
         .channel('public:bookings')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
           fetchAndRender();
-          fetchMonthlyData(); // 💡 即時重繪月曆數據
+          fetchMonthlyData();
         })
         .subscribe();
-
 
       _supabase
         .channel('public:teachers')
@@ -620,12 +610,11 @@
         })
         .subscribe();
 
-      // 💡 監聽 resources 資料表：當管理員在後台更新物資總量時，前台秒速同步並重新計算
       _supabase
         .channel('public:resources')
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'resources' }, async (payload) => {
           console.log('🔔 偵測到管理員變更了後台物資總量！', payload.new);
-          await loadResources(); // 自動重新載入資源，並重新計算與渲染看板
+          await loadResources();
         })
         .subscribe();
 
@@ -635,64 +624,62 @@
           if (currentUser) await updateAuthUI(currentUser);
         })
         .subscribe();
-      // 在 setupRealtime() 底部新增：
-  _supabase
-  .channel('public:daily_adjustments')
-  .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_adjustments' }, () => {
-    fetchAndRender();
+
+      _supabase
+        .channel('public:daily_adjustments')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_adjustments' }, () => {
+          fetchAndRender();
+          fetchMonthlyData();
+        })
+        .subscribe();
     }
 
-   // ================= 6. 讀取預約與計算庫存 =================
-  async function fetchAndRender() {
-  const selectedDate = document.getElementById('selectDate').value;
-  document.getElementById('displaySelectedDate').textContent = formatDateWithWeekday(selectedDate);
+    // ================= 6. 讀取預約與計算庫存 =================
+    async function fetchAndRender() {
+      const selectedDate = document.getElementById('selectDate').value;
+      document.getElementById('displaySelectedDate').textContent = formatDateWithWeekday(selectedDate);
 
-  try {
-    // 1. 讀取當天常規預約資料
-    const { data: bookingsData, error: err1 } = await _supabase
-      .from('bookings')
-      .select('*')
-      .eq('date', selectedDate);
+      try {
+        const { data: bookingsData, error: err1 } = await _supabase
+          .from('bookings')
+          .select('*')
+          .eq('date', selectedDate);
 
-    if (!err1 && bookingsData) {
-      currentBookings = bookingsData;
+        if (!err1 && bookingsData) {
+          currentBookings = bookingsData;
+        }
+
+        const { data: adjustData, error: err2 } = await _supabase
+          .from('daily_adjustments')
+          .select('*')
+          .eq('date', selectedDate);
+
+        if (!err2 && adjustData) {
+          dailyAdjustments = adjustData;
+        } else {
+          dailyAdjustments = [];
+        }
+
+      } catch (e) {
+        console.warn("讀取預約或調節數據出錯", e);
+      }
+
+      renderDashboard();
+      renderTable();
+      updateRemainingPreview();
+      loadTeachers(); 
     }
 
-    // 2. 🌟 讀取當天是否有管理員設置的「特別可用量調節」
-    const { data: adjustData, error: err2 } = await _supabase
-      .from('daily_adjustments')
-      .select('*')
-      .eq('date', selectedDate);
+    function getRemainingStock(lesson, device) {
+      const borrowed = currentBookings
+        .filter(b => b.lesson === parseInt(lesson) && b.device_type === device && b.status !== 'waiting' && b.status !== 'returned')
+        .reduce((sum, b) => sum + b.quantity, 0);
 
-    if (!err2 && adjustData) {
-      dailyAdjustments = adjustData;
-    } else {
-      dailyAdjustments = [];
+      const specialOverride = dailyAdjustments.find(a => a.device_type === device);
+      const total = specialOverride ? specialOverride.available_qty : (totalStock[device] || 0);
+
+      return Math.max(0, total - borrowed);
     }
-
-  } catch (e) {
-    console.warn("讀取預約或調節數據出錯", e);
-  }
-
-  renderDashboard();
-  renderTable();
-  updateRemainingPreview();
-  
-  loadTeachers(); 
-}
-
-// 💡 修改後的庫存計算公式（動態判斷當天是否有被特別覆蓋調低）
-function getRemainingStock(lesson, device) {
-  const borrowed = currentBookings
-    .filter(b => b.lesson === parseInt(lesson) && b.device_type === device && b.status !== 'waiting' && b.status !== 'returned')
-    .reduce((sum, b) => sum + b.quantity, 0);
-
-  // 🌟 核心：先檢查是否有當天的特定調整，若有則使用調整值，否則使用全校基準 totalStock
-  const specialOverride = dailyAdjustments.find(a => a.device_type === device);
-  const total = specialOverride ? specialOverride.available_qty : (totalStock[device] || 0);
-
-  return Math.max(0, total - borrowed);
-}
 
     function updateRemainingPreview() {
       const lesson = document.getElementById('lessonSelect').value;
@@ -703,14 +690,11 @@ function getRemainingStock(lesson, device) {
       
       const qtyInput = document.getElementById('quantity');
       if (remaining > 0) {
-        // 💡 只有在庫存大於 0 時，才限制輸入上限，防止誤填
         qtyInput.max = remaining;
       } else {
-        // 💡 如果已經額滿 (0部)，解除 max 限制，允許輸入數量以便觸發下面的「候補 list」確認框
         qtyInput.removeAttribute('max');
       }
     }
-
 
     function switchFrontTab(sectionId) {
       document.querySelectorAll('.tab-section-content').forEach(el => el.classList.add('hidden'));
@@ -725,62 +709,16 @@ function getRemainingStock(lesson, device) {
       activeBtn.classList.remove('border-transparent', 'text-slate-500');
     }
 
-        // ================= 視覺化月曆邏輯 =================
-    let calendarDate = new Date(); // 紀錄月曆當前顯示的年月
-    let monthlyBookings = [];      // 儲存當月所有的借用記錄以便統計
-
-    // 切換月份
+    // ================= 7. 視覺化月曆邏輯 =================
     async function changeMonth(offset) {
       calendarDate.setMonth(calendarDate.getMonth() + offset);
       await fetchMonthlyData();
     }
 
-  // 🌟 1. 擴充月曆變數：在月曆變數區新增存放「當月調節數據」的變數
-let monthlyAdjustments = []; // 儲存當月所有的每日庫存調節資料
-
-// 🌟 2. 修改 fetchMonthlyData() 函數，同時抓取當月的 bookings 與 daily_adjustments：
-async function fetchMonthlyData() {
-  const year = calendarDate.getFullYear();
-  const month = calendarDate.getMonth();
-  
-  const firstDayStr = `${year}-${String(month + 1).padStart(2, '0')}-01`;
-  const lastDay = new Date(year, month + 1, 0).getDate();
-  const lastDayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-
-  document.getElementById('calendarMonthTitle').textContent = `${year} 年 ${String(month + 1).padStart(2, '0')} 月`;
-
-  try {
-    // 同步讀取 bookings
-    const { data: bookings, error: err1 } = await _supabase
-      .from('bookings')
-      .select('*')
-      .gte('date', firstDayStr)
-      .lte('date', lastDayStr);
-
-    if (!err1 && bookings) {
-      monthlyBookings = bookings;
-    }
-
-    // 同步讀取當月的 daily_adjustments 調節資料
-    const { data: adjusts, error: err2 } = await _supabase
-      .from('daily_adjustments')
-      .select('*')
-      .gte('date', firstDayStr)
-      .lte('date', lastDayStr);
-
-    if (!err2 && adjusts) {
-      monthlyAdjustments = adjusts;
-    } else {
-      monthlyAdjustments = [];
-    }
-
-  } catch (e) {
-    console.warn("載入月曆數據失敗", e);
-  }
-  renderCalendar();
-}
+    async function fetchMonthlyData() {
+      const year = calendarDate.getFullYear();
+      const month = calendarDate.getMonth();
       
-      // 當月第一天與最後一天的 YYYY-MM-DD
       const firstDayStr = `${year}-${String(month + 1).padStart(2, '0')}-01`;
       const lastDay = new Date(year, month + 1, 0).getDate();
       const lastDayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
@@ -788,22 +726,34 @@ async function fetchMonthlyData() {
       document.getElementById('calendarMonthTitle').textContent = `${year} 年 ${String(month + 1).padStart(2, '0')} 月`;
 
       try {
-        const { data, error } = await _supabase
+        const { data: bookings, error: err1 } = await _supabase
           .from('bookings')
           .select('*')
           .gte('date', firstDayStr)
           .lte('date', lastDayStr);
 
-        if (!error && data) {
-          monthlyBookings = data;
+        if (!err1 && bookings) {
+          monthlyBookings = bookings;
         }
+
+        const { data: adjusts, error: err2 } = await _supabase
+          .from('daily_adjustments')
+          .select('*')
+          .gte('date', firstDayStr)
+          .lte('date', lastDayStr);
+
+        if (!err2 && adjusts) {
+          monthlyAdjustments = adjusts;
+        } else {
+          monthlyAdjustments = [];
+        }
+
       } catch (e) {
         console.warn("載入月曆數據失敗", e);
       }
       renderCalendar();
     }
 
-      // ================= 視覺化月曆邏輯 (已更新：顯示完整名稱 ipad, Mobile 與 第 1 節 ~ 放學) =================
     function renderCalendar() {
       const grid = document.getElementById('calendarGrid');
       grid.innerHTML = '';
@@ -811,55 +761,37 @@ async function fetchMonthlyData() {
       const year = calendarDate.getFullYear();
       const month = calendarDate.getMonth();
 
-      const firstDayIndex = new Date(year, month, 1).getDay(); // 獲取第一天是星期幾
-      const totalDays = new Date(year, month + 1, 0).getDate(); // 獲取當月共有幾天
+      const firstDayIndex = new Date(year, month, 1).getDay();
+      const totalDays = new Date(year, month + 1, 0).getDate();
 
-      // 1. 填充上個月的空白格子
       for (let i = 0; i < firstDayIndex; i++) {
         const empty = document.createElement('div');
         empty.className = "bg-slate-50 border border-slate-100 rounded-lg p-2 h-44 opacity-35";
         grid.appendChild(empty);
       }
 
-      // 💡 2. 將課節名稱改回完整的中文名稱
-      const LESSON_SHORTS = { 
-        1: '第 1 節', 
-        2: '第 2 節', 
-        3: '第 3 節', 
-        4: '第 4 節', 
-        5: '第 5 節', 
-        6: '第 6 節', 
-        7: '放學' 
-      };
+      const LESSON_SHORTS = { 1: '第 1 節', 2: '第 2 節', 3: '第 3 節', 4: '第 4 節', 5: '第 5 節', 6: '第 6 節', 7: '放學' };
 
-      // 3. 動態生成當月的日期格子
       for (let day = 1; day <= totalDays; day++) {
         const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        
-        // 獲取當天所有【非候補、非歸還】的佔用預約
         const dayBookings = monthlyBookings.filter(b => b.date === dateStr && b.status !== 'returned' && !(b.remarks && b.remarks.includes('[候補]')));
 
         const card = document.createElement('div');
-        
-        // 點擊卡片能快速跳轉日期查詢並至預約表單
         card.onclick = () => {
           document.getElementById('selectDate').value = dateStr;
           fetchAndRender();
-          switchFrontTab('booking-section'); // 自動跳回預約登記
+          switchFrontTab('booking-section');
         };
 
         const isSelected = (document.getElementById('selectDate').value === dateStr);
         card.className = `border rounded-lg p-2.5 h-44 flex flex-col justify-between cursor-pointer transition hover:border-indigo-500 hover:shadow-md ${isSelected ? 'ring-2 ring-indigo-600 border-transparent bg-indigo-50/30' : 'bg-white border-slate-200'}`;
 
-        // 建立 7 個課節的賸餘量 HTML 列表
         let lessonsListHTML = '';
 
         for (let l = 1; l <= 7; l++) {
-          // 計算該節已借出的總量
           const ipadBorrowed = dayBookings.filter(b => b.lesson === l && b.device_type === 'iPad').reduce((sum, b) => sum + b.quantity, 0);
           const mobileBorrowed = dayBookings.filter(b => b.lesson === l && b.device_type === 'Mobile').reduce((sum, b) => sum + b.quantity, 0);
 
-          // 計算賸餘量
           const dayIpadAdjust = monthlyAdjustments.find(a => a.date === dateStr && a.device_type === 'iPad');
           const dayMobileAdjust = monthlyAdjustments.find(a => a.date === dateStr && a.device_type === 'Mobile');
 
@@ -869,16 +801,13 @@ async function fetchMonthlyData() {
           const ipadRem = Math.max(0, currentDayIpadTotal - ipadBorrowed);
           const mobileRem = Math.max(0, currentDayMobileTotal - mobileBorrowed);
 
-          // 視覺化顏色控制 (賸餘量多顯綠，少顯橙，額滿顯紅)
           const ipadColor = ipadRem > 30 ? 'text-emerald-600 font-semibold' : (ipadRem > 0 ? 'text-amber-500 font-bold' : 'text-rose-500 font-bold');
           const mobileColor = mobileRem > 15 ? 'text-emerald-600 font-semibold' : (mobileRem > 0 ? 'text-amber-500 font-bold' : 'text-rose-500 font-bold');
 
           lessonsListHTML += `
             <div class="flex items-center justify-between py-0.5 border-b border-slate-100/50 last:border-0 text-[10px]">
-              <!-- 💡 改為顯示完整的「第 X 節」中文標題 -->
               <span class="font-extrabold text-slate-500 mr-1">${LESSON_SHORTS[l]}</span>
               <div class="flex items-center space-x-1.5">
-                <!-- 💡 改為完整的 iPad / Mobile 標籤顯示 -->
                 <span class="${ipadColor}" title="iPad 尚餘">iPad: ${ipadRem}</span>
                 <span class="${mobileColor}" title="Mobile 尚餘">Mobile: ${mobileRem}</span>
               </div>
@@ -887,13 +816,10 @@ async function fetchMonthlyData() {
         }
 
         card.innerHTML = `
-          <!-- 日曆格頂部：日期數字與狀態標記 -->
           <div class="flex justify-between items-center pb-1 border-b border-slate-100">
             <span class="text-xs font-black ${isSelected ? 'text-indigo-700' : 'text-slate-700'}">${day} 日</span>
             <span class="text-[9px] text-slate-400 font-medium">剩餘可借用數目</span>
           </div>
-          
-          <!-- 日曆格中部：高集成 7 個課節的賸餘量數據 -->
           <div class="flex-1 py-1 flex flex-col justify-center">
             ${lessonsListHTML}
           </div>
@@ -913,6 +839,11 @@ async function fetchMonthlyData() {
         const ipadColor = remIpad > 30 ? 'text-emerald-600 bg-emerald-50 border-emerald-200' : (remIpad > 0 ? 'text-amber-600 bg-amber-50 border-amber-200' : 'text-rose-600 bg-rose-50 border-rose-200');
         const mobileColor = remMobile > 15 ? 'text-emerald-600 bg-emerald-50 border-emerald-200' : (remMobile > 0 ? 'text-amber-600 bg-amber-50 border-amber-200' : 'text-rose-600 bg-rose-50 border-rose-200');
 
+        const specialIpadOverride = dailyAdjustments.find(a => a.device_type === 'iPad');
+        const specialMobileOverride = dailyAdjustments.find(a => a.device_type === 'Mobile');
+        const ipadTotal = specialIpadOverride ? specialIpadOverride.available_qty : totalStock.iPad;
+        const mobileTotal = specialMobileOverride ? specialMobileOverride.available_qty : totalStock.Mobile;
+
         const card = document.createElement('div');
         card.className = "bg-slate-50 border border-slate-200 rounded-lg p-2.5 flex flex-col justify-between shadow-xs";
         card.innerHTML = `
@@ -922,11 +853,11 @@ async function fetchMonthlyData() {
           <div class="space-y-1 text-[11px]">
             <div class="flex items-center justify-between px-1.5 py-0.5 rounded border ${ipadColor}">
               <span class="font-medium">iPad</span>
-              <span class="font-bold">${remIpad} / ${totalStock.iPad}</span>
+              <span class="font-bold">${remIpad} / ${ipadTotal}</span>
             </div>
             <div class="flex items-center justify-between px-1.5 py-0.5 rounded border ${mobileColor}">
               <span class="font-medium">Mobile</span>
-              <span class="font-bold">${remMobile} / ${totalStock.Mobile}</span>
+              <span class="font-bold">${remMobile} / ${mobileTotal}</span>
             </div>
           </div>
         `;
@@ -934,7 +865,7 @@ async function fetchMonthlyData() {
       }
     }
 
-       // ================= 7. 渲染當日借用詳情清單 (依登記時間先後嚴格排序候補) =================
+    // ================= 8. 渲染當日借用詳情清單 =================
     function renderTable() {
       const tbody = document.getElementById('bookingsTableBody');
       const emptyMsg = document.getElementById('emptyMessage');
@@ -949,7 +880,6 @@ async function fetchMonthlyData() {
       }
       emptyMsg.classList.add('hidden');
 
-      // 💡 1. 將預約分流：正式預約與候補預約
       const activeBookings = [];
       const waitingBookings = [];
 
@@ -962,17 +892,10 @@ async function fetchMonthlyData() {
         }
       });
 
-      // 💡 2. 進行個別排序：
-      // * 正式預約按「課節」由小到大排序
       activeBookings.sort((a, b) => a.lesson - b.lesson);
-      
-      // * 候補預約嚴格按「登記創建時間 created_at」先後順序排序（更早登記的排在前面）
       waitingBookings.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
 
-      // 💡 3. 合併名單：正式預約在上，候補預約在下
       const finalSortedList = [...activeBookings, ...waitingBookings];
-
-      // 用於統計各設備（iPad / Mobile）在不同課節的候補名次
       const waitingCounters = {};
 
       finalSortedList.forEach(item => {
@@ -982,12 +905,10 @@ async function fetchMonthlyData() {
 
         let waitingBadgeHTML = '';
         if (isWaiting) {
-          // 💡 計算此設備在該課節的候補次序
           const key = `${item.lesson}_${item.device_type}`;
           waitingCounters[key] = (waitingCounters[key] || 0) + 1;
           const waitOrder = waitingCounters[key];
 
-          // 生成精美的候補次序標籤 (如：候補 1)
           waitingBadgeHTML = `
             <span class="ml-1 px-1.5 py-0.5 bg-amber-500 text-white text-[10px] rounded-sm font-bold border border-amber-600 animate-pulse">
               候補 ${waitOrder}
@@ -1027,9 +948,7 @@ async function fetchMonthlyData() {
       });
     }
 
-
-
-    // ================= 8. 提交借用表單 (已修復停借日期過期判定與候補 HTML5 阻擋) =================
+    // ================= 9. 提交借用表單 =================
     async function handleFormSubmit(event) {
       event.preventDefault();
 
@@ -1060,18 +979,16 @@ async function fetchMonthlyData() {
         return;
       }
 
-      // 💡 修正停借判定：在提交時也要檢查截止日期 (同 loadTeachers 邏輯)
       const teacherRecord = teachersList.find(t => t.name === teacher_name);
       let isTeacherCurrentlySuspended = false;
 
       if (teacherRecord && teacherRecord.is_suspended) {
         if (teacherRecord.suspended_until) {
-          // 比對當前預約日期與停借截止日期
           if (date <= teacherRecord.suspended_until) {
-            isTeacherCurrentlySuspended = true; // 預約日仍在停借期內，禁止
+            isTeacherCurrentlySuspended = true;
           }
         } else {
-          isTeacherCurrentlySuspended = true; // 無設定日期，永久停借
+          isTeacherCurrentlySuspended = true;
         }
       }
 
@@ -1084,14 +1001,13 @@ async function fetchMonthlyData() {
       }
 
       const remaining = getRemainingStock(lesson, device_type);
-      let isWaiting = false; // 用於標記是否為候補狀態
+      let isWaiting = false;
 
       if (quantity > remaining) {
-        // 💡 庫存不足時，成功觸發候補詢問框
         const confirmWait = confirm(`⚠️ 該節 ${device_type} 剩餘庫存為 ${remaining} 部（不足 ${quantity} 部）。\n\n您是否要將此預約排入【候補名單 (Waiting List)】？\n若當天有同事未前來取機，將依候補順序為您安排。`);
         
         if (confirmWait) {
-          isWaiting = true; // 標記為候補
+          isWaiting = true;
         } else {
           submitBtn.disabled = false;
           submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
@@ -1133,7 +1049,7 @@ async function fetchMonthlyData() {
       submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
     }
 
-    // ================= 9. 取消借用 =================
+    // ================= 10. 取消借用 =================
     async function deleteBooking(id, teacherName) {
       if (!currentUser) {
         alert('請先登入！');
@@ -1151,9 +1067,6 @@ async function fetchMonthlyData() {
         }
       }
     }
-// 在 const WEEKDAY_NAMES = [...] 下方新增：
-let dailyAdjustments = []; // 用於存放特定日期特別設定的物資總量
-
   </script>
 </body>
 </html>

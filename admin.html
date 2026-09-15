@@ -1,14 +1,55 @@
-    async function updateResourcesStock(event) {
-      event.preventDefault();
-      const ipadVal = parseInt(document.getElementById('adminIpadStock').value);
-      const mobileVal = parseInt(document.getElementById('adminMobileStock').value);
+// 1. 更新物資總量
+async function updateResourcesStock(event) {
+  event.preventDefault();
 
-      const res1 = await _supabase.from('resources').update({ total_qty: ipadVal }).eq('name', 'iPad');
-      const res2 = await _supabase.from('resources').update({ total_qty: mobileVal }).eq('name', 'Mobile');
+  const ipadVal = parseInt(document.getElementById('adminIpadStock').value);
+  const mobileVal = parseInt(document.getElementById('adminMobileStock').value);
 
-      if (res1.error || res2.error) {
-        alert('❌ 儲存失敗：' + (res1.error?.message || res2.error?.message));
-      } else {
-        alert('✅ 全校物資總量已成功更新！前台已即時套用新上限。');
-      }
-    }
+  // 分別更新 iPad 與 Mobile 的庫存
+  const res1 = await _supabase.from('resources').update({ total_qty: ipadVal }).eq('name', 'iPad');
+  const res2 = await _supabase.from('resources').update({ total_qty: mobileVal }).eq('name', 'Mobile');
+
+  if (res1.error || res2.error) {
+    alert('❌ 儲存失敗：' + (res1.error?.message || res2.error?.message));
+  } else {
+    alert('✅ 全校物資總量已成功更新！前台已即時套用新上限。');
+  }
+}
+
+// 2. 驗證管理員身分 (向 admins 表動態查詢)
+async function verifyAdminAuth() {
+  if (!isConnected || !_supabase) return;
+
+  const { data: { session } } = await _supabase.auth.getSession();
+  currentAdminUser = session?.user || null;
+
+  const adminEmailDisplay = document.getElementById('adminEmailDisplay');
+  const accessDeniedBlock = document.getElementById('accessDeniedBlock');
+  const adminMainContent = document.getElementById('adminMainContent');
+
+  let isAdmin = false;
+  if (currentAdminUser && currentAdminUser.email) {
+    // 向 admins 資料表查詢該電郵是否存在 (不分大小寫)
+    const { data, error } = await _supabase
+      .from('admins')
+      .select('email')
+      .ilike('email', currentAdminUser.email.trim());
+
+    isAdmin = (!error && data && data.length > 0);
+  }
+
+  if (isAdmin) {
+    adminEmailDisplay.textContent = currentAdminUser.email;
+    accessDeniedBlock.classList.add('hidden');
+    adminMainContent.classList.remove('hidden');
+
+    // 載入後台各模組資料
+    loadAdminBookings();
+    loadAdminTeachers();
+    loadAdminResources();
+  } else {
+    adminEmailDisplay.textContent = currentAdminUser ? currentAdminUser.email : '未登入';
+    accessDeniedBlock.classList.remove('hidden');
+    adminMainContent.classList.add('hidden');
+  }
+}

@@ -741,7 +741,7 @@
       renderCalendar();
     }
 
-    // 渲染日曆網格
+     // ================= 視覺化月曆邏輯 (已升級：單格內完整望哂 7 個節數的賸餘部數) =================
     function renderCalendar() {
       const grid = document.getElementById('calendarGrid');
       grid.innerHTML = '';
@@ -755,50 +755,74 @@
       // 1. 填充上個月的空白格子
       for (let i = 0; i < firstDayIndex; i++) {
         const empty = document.createElement('div');
-        empty.className = "bg-slate-50 border border-slate-100 rounded-lg p-2 h-20 opacity-35";
+        empty.className = "bg-slate-50 border border-slate-100 rounded-lg p-2 h-44 opacity-35";
         grid.appendChild(empty);
       }
 
-      // 2. 動態生成當月的日期格子
+      // 2. 建立課節名稱簡稱 (L1 代表 Lesson 1，Afterschool 代表放學)
+      const LESSON_SHORTS = { 1: 'L1', 2: 'L2', 3: 'L3', 4: 'L4', 5: 'L5', 6: 'L6', 7: '放學' };
+
+      // 3. 動態生成當月的日期格子
       for (let day = 1; day <= totalDays; day++) {
         const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
         
-        // 篩選當天這兩類設備的非候補借出總數
+        // 獲取當天所有【非候補、非歸還】的佔用預約
         const dayBookings = monthlyBookings.filter(b => b.date === dateStr && b.status !== 'returned' && !(b.remarks && b.remarks.includes('[候補]')));
-        
-        const ipadBorrowed = dayBookings.filter(b => b.device_type === 'iPad').reduce((sum, b) => sum + b.quantity, 0);
-        const mobileBorrowed = dayBookings.filter(b => b.device_type === 'Mobile').reduce((sum, b) => sum + b.quantity, 0);
 
         const card = document.createElement('div');
-        // 點擊卡片能快速跳轉日期查詢
+        
+        // 點擊卡片能快速跳轉日期查詢並至預約表單
         card.onclick = () => {
           document.getElementById('selectDate').value = dateStr;
           fetchAndRender();
           switchFrontTab('booking-section'); // 自動跳回預約登記
         };
 
-        // 判斷當天是否有借出，給予背景高亮
-        const hasBorrowed = ipadBorrowed > 0 || mobileBorrowed > 0;
-        card.className = `border rounded-lg p-2 h-24 flex flex-col justify-between cursor-pointer transition hover:border-indigo-500 hover:shadow-xs ${hasBorrowed ? 'bg-indigo-50/20 border-indigo-100' : 'bg-white border-slate-200'}`;
-
-        // 當天是否為選取的當前查詢日期
         const isSelected = (document.getElementById('selectDate').value === dateStr);
-        if (isSelected) card.className += " ring-2 ring-indigo-600 border-transparent bg-indigo-50/50";
+        card.className = `border rounded-lg p-2.5 h-44 flex flex-col justify-between cursor-pointer transition hover:border-indigo-500 hover:shadow-md ${isSelected ? 'ring-2 ring-indigo-600 border-transparent bg-indigo-50/30' : 'bg-white border-slate-200'}`;
+
+        // 建立 7 個課節的賸餘量 HTML 列表
+        let lessonsListHTML = '';
+
+        for (let l = 1; l <= 7; l++) {
+          // 計算該節已借出的總量
+          const ipadBorrowed = dayBookings.filter(b => b.lesson === l && b.device_type === 'iPad').reduce((sum, b) => sum + b.quantity, 0);
+          const mobileBorrowed = dayBookings.filter(b => b.lesson === l && b.device_type === 'Mobile').reduce((sum, b) => sum + b.quantity, 0);
+
+          // 計算賸餘量
+          const ipadRem = Math.max(0, totalStock.iPad - ipadBorrowed);
+          const mobileRem = Math.max(0, totalStock.Mobile - mobileBorrowed);
+
+          // 💡 視覺化顏色控制 (賸餘量多顯綠，少顯橙，額滿顯紅)
+          const ipadColor = ipadRem > 30 ? 'text-emerald-600 font-semibold' : (ipadRem > 0 ? 'text-amber-500 font-bold' : 'text-rose-500 font-bold');
+          const mobileColor = mobileRem > 15 ? 'text-emerald-600 font-semibold' : (mobileRem > 0 ? 'text-amber-500 font-bold' : 'text-rose-500 font-bold');
+
+          lessonsListHTML += `
+            <div class="flex items-center justify-between py-0.5 border-b border-slate-100/50 last:border-0 text-[10px]">
+              <span class="font-bold text-slate-500 mr-1">${LESSON_SHORTS[l]}</span>
+              <div class="flex items-center space-x-1.5">
+                <span class="${ipadColor}" title="iPad 尚餘">i:${ipadRem}</span>
+                <span class="${mobileColor}" title="Mobile 尚餘">m:${mobileRem}</span>
+              </div>
+            </div>
+          `;
+        }
 
         card.innerHTML = `
-          <div class="flex justify-between items-center">
-            <span class="text-xs font-bold ${isSelected ? 'text-indigo-700' : 'text-slate-700'}">${day}</span>
-            ${hasBorrowed ? `<span class="w-1.5 h-1.5 rounded-full bg-indigo-600"></span>` : ''}
+          <!-- 日曆格頂部：日期數字與狀態標記 -->
+          <div class="flex justify-between items-center pb-1 border-b border-slate-100">
+            <span class="text-xs font-black ${isSelected ? 'text-indigo-700' : 'text-slate-700'}">${day} 日</span>
+            <span class="text-[9px] text-slate-400 font-medium">L1 ~ 放學</span>
           </div>
-          <div class="space-y-1 text-[10px]">
-            ${ipadBorrowed > 0 ? `<div class="text-blue-600 font-semibold truncate">📱 iPad: ${ipadBorrowed}部</div>` : ''}
-            ${mobileBorrowed > 0 ? `<div class="text-purple-600 font-semibold truncate">🔋 Mob: ${mobileBorrowed}部</div>` : ''}
+          
+          <!-- 日曆格中部：高集成 7 個課節 iPad 與 Mobile 的賸餘量數據 -->
+          <div class="flex-1 py-1 flex flex-col justify-center">
+            ${lessonsListHTML}
           </div>
         `;
         grid.appendChild(card);
       }
     }
-
 
     function renderDashboard() {
       const grid = document.getElementById('lessonsGrid');

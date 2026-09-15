@@ -606,7 +606,7 @@
         .subscribe();
     }
 
-    // ================= 6. 讀取預約與計算庫存 =================
+   // ================= 6. 讀取預約與計算庫存 =================
     async function fetchAndRender() {
       const selectedDate = document.getElementById('selectDate').value;
       document.getElementById('displaySelectedDate').textContent = formatDateWithWeekday(selectedDate);
@@ -627,6 +627,9 @@
       renderDashboard();
       renderTable();
       updateRemainingPreview();
+      
+      // 💡 每次切換日期時，也重新加載並計算老師是否解禁
+      loadTeachers(); 
     }
 
     function getRemainingStock(lesson, device) {

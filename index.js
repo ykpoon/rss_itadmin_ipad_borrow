@@ -551,7 +551,7 @@ function renderCalendar() {
 }
 
 
-// ================= index.js 中的 renderDashboard 函數（已修正：淺灰底色、字型放大） =================
+// ================= index.js 中的 renderDashboard 函數（已修正：字型統一、左右對齊、完美間距） =================
 function renderDashboard() {
   const grid = document.getElementById('lessonsGrid');
   if (!grid) return;
@@ -561,14 +561,14 @@ function renderDashboard() {
     const remIpad = getRemainingStock(l, 'iPad');
     const remMobile = getRemainingStock(l, 'Mobile');
 
-    // 💡 剩餘量小標籤的顏色（供應充足：綠色、緊張：橙黃色、額滿：紅色）
+    // 💡 剩餘量小標籤的顏色（供應充足：綠色、緊張：黃橙色、額滿：紅色）
     const ipadColor = remIpad > 30 
-      ? 'text-teal-700 bg-teal-100/60 border-teal-200' 
-      : (remIpad > 0 ? 'text-amber-700 bg-amber-100/60 border-amber-200' : 'text-rose-700 bg-rose-100/80 border-rose-200');
+      ? 'text-teal-800 bg-teal-100/60 border-teal-200' 
+      : (remIpad > 0 ? 'text-amber-800 bg-amber-100/60 border-amber-200' : 'text-rose-800 bg-rose-100/80 border-rose-200');
     
     const mobileColor = remMobile > 15 
-      ? 'text-teal-700 bg-teal-100/60 border-teal-200' 
-      : (remMobile > 0 ? 'text-amber-700 bg-amber-100/60 border-amber-200' : 'text-rose-700 bg-rose-100/80 border-rose-200');
+      ? 'text-teal-800 bg-teal-100/60 border-teal-200' 
+      : (remMobile > 0 ? 'text-amber-800 bg-amber-100/60 border-amber-200' : 'text-rose-800 bg-rose-100/80 border-rose-200');
 
     const specialIpadOverride = dailyAdjustments.find(a => a.device_type === 'iPad');
     const specialMobileOverride = dailyAdjustments.find(a => a.device_type === 'Mobile');
@@ -576,29 +576,30 @@ function renderDashboard() {
     const mobileTotal = specialMobileOverride ? specialMobileOverride.available_qty : totalStock.Mobile;
 
     const card = document.createElement('div');
-    // 💡 已修正：將底色改為優雅的淺灰色 bg-slate-50，並加入更細緻的邊框與 hover 微微放大效果
+    // 優雅的淺灰色卡片底色與極淡邊框
     card.className = "bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col justify-between shadow-xs hover:border-teal-500/30 hover:shadow-md transition-all duration-200 transform hover:-translate-y-0.5";
     card.innerHTML = `
-      <!-- 課節標題：字型加大至 text-sm / font-bold -->
-      <div class="text-sm font-bold text-slate-700 mb-2.5 pb-2 border-b border-slate-200 flex justify-between items-center">
+      <!-- 課節標題：加大字型並加粗 -->
+      <div class="text-sm font-extrabold text-slate-700 mb-3 pb-2 border-b border-slate-200/60 flex justify-between items-center">
         <span>${LESSON_NAMES[l]}</span>
         <span class="w-2 h-2 rounded-full bg-teal-500"></span>
       </div>
-      <!-- 設備數量：字型加大至 text-xs / font-bold / text-sm 數字 -->
+      <!-- 設備數量：字型完全統一，使用 flex 佈局的 justify-between 讓設備名稱在左、數字在右，完美避開擠在一起的問題 -->
       <div class="space-y-2 text-xs font-bold">
         <div class="flex items-center justify-between px-3 py-2 rounded-xl border ${ipadColor}">
-          <span>iPad</span>
-          <span class="font-mono text-sm font-black">${remIpad} / ${ipadTotal}</span>
+          <span class="tracking-wide">iPad</span>
+          <span class="font-extrabold text-sm ml-2">${remIpad} / ${ipadTotal}</span>
         </div>
         <div class="flex items-center justify-between px-3 py-2 rounded-xl border ${mobileColor}">
-          <span>Mobile</span>
-          <span class="font-mono text-sm font-black">${remMobile} / ${mobileTotal}</span>
+          <span class="tracking-wide">Mobile</span>
+          <span class="font-extrabold text-sm ml-2">${remMobile} / ${mobileTotal}</span>
         </div>
       </div>
     `;
     grid.appendChild(card);
   }
 }
+
 
 
 

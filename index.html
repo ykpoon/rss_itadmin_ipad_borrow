@@ -648,9 +648,17 @@
       const remaining = getRemainingStock(lesson, device);
 
       document.getElementById('stockBadge').textContent = `(尚餘: ${remaining} 部)`;
+      
       const qtyInput = document.getElementById('quantity');
-      qtyInput.max = remaining;
+      if (remaining > 0) {
+        // 💡 只有在庫存大於 0 時，才限制輸入上限，防止誤填
+        qtyInput.max = remaining;
+      } else {
+        // 💡 如果已經額滿 (0部)，解除 max 限制，允許輸入數量以便觸發下面的「候補 list」確認框
+        qtyInput.removeAttribute('max');
+      }
     }
+
 
     function switchFrontTab(sectionId) {
       document.querySelectorAll('.tab-section-content').forEach(el => el.classList.add('hidden'));
@@ -750,7 +758,7 @@
     }
 
 
-  // ================= 8. 提交借用表單 (支援 Waiting List & 移除重複塞單) =================
+    // ================= 8. 提交借用表單 (已修復停借日期過期判定與候補 HTML5 阻擋) =================
     async function handleFormSubmit(event) {
       event.preventDefault();
 
@@ -781,25 +789,39 @@
         return;
       }
 
+      // 💡 修正停借判定：在提交時也要檢查截止日期 (同 loadTeachers 邏輯)
       const teacherRecord = teachersList.find(t => t.name === teacher_name);
+      let isTeacherCurrentlySuspended = false;
+
       if (teacherRecord && teacherRecord.is_suspended) {
-        alert(`❌ 借用失敗：${teacher_name} 老師目前處於停止借用期！`);
+        if (teacherRecord.suspended_until) {
+          // 比對當前預約日期與停借截止日期
+          if (date <= teacherRecord.suspended_until) {
+            isTeacherCurrentlySuspended = true; // 預約日仍在停借期內，禁止
+          }
+        } else {
+          isTeacherCurrentlySuspended = true; // 無設定日期，永久停借
+        }
+      }
+
+      if (isTeacherCurrentlySuspended) {
+        const until = teacherRecord.suspended_until ? `至 ${teacherRecord.suspended_until}` : '';
+        alert(`❌ 借用失敗：${teacher_name} 老師在 ${date} 當天仍處於停止借用期 (${until})！`);
         submitBtn.disabled = false;
         submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
         return;
       }
 
       const remaining = getRemainingStock(lesson, device_type);
-      let isWaiting = false; // 💡 用於標記是否為候補狀態
+      let isWaiting = false; // 用於標記是否為候補狀態
 
       if (quantity > remaining) {
-        // 💡 如果庫存不足，主動詢問是否加入候補名單
+        // 💡 庫存不足時，成功觸發候補詢問框
         const confirmWait = confirm(`⚠️ 該節 ${device_type} 剩餘庫存為 ${remaining} 部（不足 ${quantity} 部）。\n\n您是否要將此預約排入【候補名單 (Waiting List)】？\n若當天有同事未前來取機，將依候補順序為您安排。`);
         
         if (confirmWait) {
           isWaiting = true; // 標記為候補
         } else {
-          // 老師拒絕候補，則取消提交
           submitBtn.disabled = false;
           submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
           return;
@@ -807,7 +829,6 @@
       }
 
       if (_supabase) {
-        // 💡 寫入資料庫：若是候補，status 為 'waiting'；否則為預設的 'pending'
         const bookingStatus = isWaiting ? 'waiting' : 'pending';
         
         const { error } = await _supabase.from('bookings').insert([{
@@ -840,6 +861,7 @@
       submitBtn.disabled = false;
       submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
     }
+
     // ================= 9. 取消借用 =================
     async function deleteBooking(id, teacherName) {
       if (!currentUser) {

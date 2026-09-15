@@ -104,34 +104,42 @@
     <!-- ================= 分頁 1: 預約登記 ================= -->
     <div id="booking-section" class="tab-section-content space-y-8">
       <!-- 剩餘量看板 -->
+            <!-- 1. 各節設備剩餘量看板 (已優化：拒絕左右擠壓，採用上下分層大佈局) -->
       <section class="tech-card rounded-2xl p-6 transition duration-300">
-        <div class="flex flex-col md:flex-row md:items-center justify-between pb-4 mb-5 border-b border-slate-200 gap-3">
-          <div>
-            <!-- 標題與說明字體加大 -->
+        
+        <!-- 上層：標題與狀態說明一左一右，排版寬鬆大氣 -->
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between pb-5 mb-6 border-b border-slate-200/60 gap-4">
+          <div class="space-y-1">
             <h2 class="text-lg font-extrabold text-slate-800 flex items-center gap-2">
-              <i class="fa-solid fa-chart-line text-teal-500"></i>
+              <i class="fa-solid fa-chart-line text-teal-500 text-sm"></i>
               各節設備剩餘量看板 (<span id="displaySelectedDate" class="text-teal-600 font-black"></span>)
             </h2>
-            <p id="totalStockSubtitle" class="text-xs text-slate-500 font-medium mt-1">載入庫存中...</p>
+            <p id="totalStockSubtitle" class="text-xs text-slate-400 font-medium">載入庫存中...</p>
           </div>
-                   <!-- 💡 已修正：狀態燈文字說明調大，並準確描述「一半以上」與「一半以下」的邏輯 -->
-          <div class="flex flex-wrap items-center gap-4 text-xs font-extrabold">
-            <span class="flex items-center gap-1.5 text-slate-600">
-              <span class="w-2.5 h-2.5 rounded-full bg-teal-400 shadow-sm"></span> 供應充足 (剩餘一半以上)
+          
+          <!-- 狀態說明：字型清晰舒服 -->
+          <div class="flex flex-wrap items-center gap-5 text-xs font-bold text-slate-500">
+            <span class="flex items-center gap-2">
+              <span class="w-3 h-3 rounded-full bg-teal-400 shadow-sm shadow-teal-400/20"></span> 供應充足 (剩餘一半以上)
             </span>
-            <span class="flex items-center gap-1.5 text-slate-600">
-              <span class="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-sm"></span> 緊張 (剩餘一半或以下)
+            <span class="flex items-center gap-2">
+              <span class="w-3 h-3 rounded-full bg-amber-400 shadow-sm shadow-amber-400/20"></span> 緊張 (剩餘一半或以下)
             </span>
-            <span class="flex items-center gap-1.5 text-slate-600">
-              <span class="w-2.5 h-2.5 rounded-full bg-rose-400 shadow-sm"></span> 額滿 (0 部)
+            <span class="flex items-center gap-2">
+              <span class="w-3 h-3 rounded-full bg-rose-400 shadow-sm shadow-rose-400/20"></span> 額滿 (0 部)
             </span>
           </div>
-
-
-        <div id="lessonsGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-4">
-          <!-- 課節卡片由 JS 動態生成 -->
         </div>
+
+        <!-- 下層：獨立一行、寬鬆橫向鋪開的 7 個課節卡片 -->
+        <div class="w-full">
+          <div id="lessonsGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-4">
+            <!-- 課節卡片由 JS 動態生成 -->
+          </div>
+        </div>
+        
       </section>
+
 
       <!-- 提交與詳情兩欄佈局 -->
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">

@@ -81,38 +81,10 @@
         <div class="flex items-center gap-3">
           <label class="text-xs font-semibold text-slate-600">審核日期：</label>
           <input type="date" id="adminQueryDate" class="border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500">
-          <button onclick="loadAdminBookings(let statusBadge = '<span class="px-2 py-0.5 bg-amber-100 text-amber-800 rounded font-semibold">待取機</span>';
-        if (item.status === 'borrowed') statusBadge = '<span class="px-2 py-0.5 bg-blue-100 text-blue-800 rounded font-semibold">已借出</span>';
-        if (item.status === 'returned') statusBadge = '<span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded font-semibold">已歸還</span>';
-        if (item.status === 'missed') statusBadge = '<span class="px-2 py-0.5 bg-rose-100 text-rose-800 rounded font-semibold">欠取機</span>';
-        // 💡 支援 Waiting 標籤
-        if (item.status === 'waiting') statusBadge = '<span class="px-2 py-0.5 bg-yellow-400 text-yellow-950 rounded font-bold animate-pulse">候補中 (Wait)</span>';
+         <button onclick="loadAdminBookings()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-3.5 py-2 rounded-lg transition">
+  <i class="fa-solid fa-rotate-right mr-1"></i> 刷新記錄
+</button>
 
-        tr.innerHTML = `
-          <td class="py-3 px-4 font-bold text-slate-800">${LESSON_NAMES[item.lesson]}</td>
-          <td class="py-3 px-4 font-semibold text-indigo-700">${item.teacher_name}</td>
-          <td class="py-3 px-4 font-bold">${item.device_type} × ${item.quantity}</td>
-          <td class="py-3 px-4">${item.class} · ${item.subject} (${item.room})</td>
-          <td class="py-3 px-4 text-slate-400 font-mono text-[11px]">${item.user_email || '無記錄'}</td>
-          <td class="py-3 px-4">${statusBadge}</td>
-          <td class="py-3 px-4 text-center space-x-1">
-            <!-- 💡 點擊「已取」將會自動將不管是待取還是候補的狀態更新為「已借出 (borrowed)」，即時套用庫存 -->
-            <button onclick="updateBookingStatus('${item.id}', 'borrowed')" class="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded font-medium transition" title="確認借出（候補扶正）">
-              <i class="fa-solid fa-box-open"></i> 已取
-            </button>
-            <button onclick="updateBookingStatus('${item.id}', 'returned')" class="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded font-medium transition" title="標記為已歸還">
-              <i class="fa-solid fa-circle-check"></i> 歸還
-            </button>
-            <button onclick="markAsMissed('${item.id}', '${item.teacher_name}')" class="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded font-medium transition" title="標記為欠取">
-              <i class="fa-solid fa-triangle-exclamation"></i> 欠取
-            </button>
-            <button onclick="deleteBookingAdmin('${item.id}')" class="p-1 text-slate-400 hover:text-rose-600 transition" title="強制刪除此記錄">
-              <i class="fa-solid fa-trash-can"></i>
-            </button>
-          </td>
-        `;)" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-3.5 py-2 rounded-lg transition">
-            <i class="fa-solid fa-rotate-right mr-1"></i> 刷新記錄
-          </button>
         </div>
         <div class="flex items-center gap-2 text-xs">
           <span class="px-2 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded">待取機: <b id="countPending">0</b></span>
@@ -320,6 +292,7 @@
     }
 
     // ================= 3. 借還審核 =================
+      // ================= 3. 借還審核 (已修正：完美支援候補中與已還狀態) =================
     async function loadAdminBookings() {
       const selectedDate = document.getElementById('adminQueryDate').value;
       const { data, error } = await _supabase
@@ -344,10 +317,12 @@
         const tr = document.createElement('tr');
         tr.className = "hover:bg-slate-50 transition";
 
+        // 💡 根據 status 給予對應狀態標籤（包含等待與候補）
         let statusBadge = '<span class="px-2 py-0.5 bg-amber-100 text-amber-800 rounded font-semibold">待取機</span>';
         if (item.status === 'borrowed') statusBadge = '<span class="px-2 py-0.5 bg-blue-100 text-blue-800 rounded font-semibold">已借出</span>';
-        if (item.status === 'returned') statusBadge = '<span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded font-semibold">已歸還</span>';
+        if (item.status === 'returned') statusBadge = '<span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded font-semibold">已歸還</span>';
         if (item.status === 'missed') statusBadge = '<span class="px-2 py-0.5 bg-rose-100 text-rose-800 rounded font-semibold">欠取機</span>';
+        if (item.status === 'waiting') statusBadge = '<span class="px-2 py-0.5 bg-yellow-400 text-yellow-950 rounded font-bold animate-pulse">候補中 (Wait)</span>';
 
         tr.innerHTML = `
           <td class="py-3 px-4 font-bold text-slate-800">${LESSON_NAMES[item.lesson]}</td>
@@ -357,13 +332,14 @@
           <td class="py-3 px-4 text-slate-400 font-mono text-[11px]">${item.user_email || '無記錄'}</td>
           <td class="py-3 px-4">${statusBadge}</td>
           <td class="py-3 px-4 text-center space-x-1">
-            <button onclick="updateBookingStatus('${item.id}', 'borrowed')" class="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded font-medium transition" title="標記為已取機">
+            <!-- 💡 點擊「已取」將直接更新該筆預約狀態為「已借出 (borrowed)」 -->
+            <button onclick="updateBookingStatus('${item.id}', 'borrowed')" class="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded font-medium transition" title="確認借出（候補扶正）">
               <i class="fa-solid fa-box-open"></i> 已取
             </button>
             <button onclick="updateBookingStatus('${item.id}', 'returned')" class="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded font-medium transition" title="標記為已歸還">
               <i class="fa-solid fa-circle-check"></i> 歸還
             </button>
-            <button onclick="markAsMissed('${item.id}', '${item.teacher_name}')" class="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded font-medium transition" title="標記為欠取機並自動累加欠取次數">
+            <button onclick="markAsMissed('${item.id}', '${item.teacher_name}')" class="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded font-medium transition" title="標記為欠取">
               <i class="fa-solid fa-triangle-exclamation"></i> 欠取
             </button>
             <button onclick="deleteBookingAdmin('${item.id}')" class="p-1 text-slate-400 hover:text-rose-600 transition" title="強制刪除此記錄">
@@ -374,6 +350,7 @@
         tbody.appendChild(tr);
       });
     }
+
 
 function updateStatusCounters(list) {
       document.getElementById('countPending').textContent = list.filter(i => i.status === 'pending').length;

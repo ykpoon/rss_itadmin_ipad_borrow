@@ -23,7 +23,7 @@
       <div class="flex items-center space-x-3">
         <i class="fa-solid fa-tablet-screen-button text-2xl text-indigo-200"></i>
         <div>
-          <h1 class="text-xl font-bold tracking-tight">iPad / 手機設備借用管理系統</h1>
+          <h1 class="text-xl font-bold tracking-tight">iPad / 設備借用管理系統</h1>
           <p class="text-xs text-indigo-200">即時庫存查詢與課節登記</p>
         </div>
       </div>
@@ -38,7 +38,7 @@
           <input type="date" id="selectDate" class="bg-transparent text-white text-sm font-semibold focus:outline-none cursor-pointer">
         </div>
 
-        <!-- 管理員專屬跳轉按鈕 (向資料庫 admins 表確認後自動顯示) -->
+        <!-- 🌟 管理員專屬跳轉按鈕 (資料庫判定為管理員後自動顯示) -->
         <a id="adminPortalBtn" href="admin.html" class="hidden bg-amber-400 hover:bg-amber-300 text-amber-950 font-bold text-xs px-3 py-2 rounded-lg shadow-sm flex items-center gap-1.5 transition border border-amber-500">
           <i class="fa-solid fa-screwdriver-wrench"></i> 進入 IT 後台
         </a>
@@ -83,7 +83,7 @@
           <div>
             <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
               <i class="fa-solid fa-chart-pie text-indigo-600"></i>
-              各課節剩餘iPad及手機量 (<span id="displaySelectedDate" class="text-indigo-600 font-semibold"></span>)
+              各節設備剩餘量看板 (<span id="displaySelectedDate" class="text-indigo-600 font-semibold"></span>)
             </h2>
             <p id="totalStockSubtitle" class="text-xs text-slate-500 mt-0.5">全校總量基準：正在載入資料庫庫存...</p>
           </div>
@@ -94,7 +94,6 @@
           </div>
         </div>
 
-        <!-- 課節卡片網格 -->
         <div id="lessonsGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
           <!-- 課節卡片由 JS 動態生成 -->
         </div>
@@ -187,16 +186,36 @@
                   <option value="班主任節">班主任節</option><option value="其他">其他</option>
                 </select>
               </div>
-              <!-- 地點 / 房號 (下拉選單) -->
+              <!-- 🌟 地點 / 房號 (已加入完整 1A - 6C 及各專用特別室) -->
               <div>
                 <label class="block text-xs font-semibold text-slate-600 mb-1">地點/房號 <span class="text-rose-500">*</span></label>
                 <select id="room" required class="w-full px-2 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white">
                   <option value="" disabled selected>請選擇...</option>
-                  <option value="地理室">地理室</option><option value="ART I">ART I</option><option value="ART II">ART II</option>
-                  <option value="IS Lab">IS Lab</option><option value="Chem Lab">Chem Lab</option><option value="Phy Lab">Phy Lab</option>
-                  <option value="Bio Lab">Bio Lab</option><option value="創科天地">創科天地</option><option value="廚藝學堂">廚藝學堂</option>
-                  <option value="音樂室">音樂室</option><option value="圖書館">圖書館</option><option value="多用途室(一)">多用途室(一)</option>
-                  <option value="多用途室(二)">多用途室(二)</option><option value="禮堂">禮堂</option><option value="普通課室">普通課室</option>
+                  <optgroup label="── 特別室 / 實驗室 ──">
+                    <option value="地理室">地理室</option>
+                    <option value="ART I">ART I</option>
+                    <option value="ART II">ART II</option>
+                    <option value="IS Lab">IS Lab</option>
+                    <option value="Chem Lab">Chem Lab</option>
+                    <option value="Phy Lab">Phy Lab</option>
+                    <option value="Bio Lab">Bio Lab</option>
+                    <option value="創科天地">創科天地</option>
+                    <option value="廚藝學堂">廚藝學堂</option>
+                    <option value="音樂室">音樂室</option>
+                    <option value="圖書館">圖書館</option>
+                    <option value="多用途室(一)">多用途室(一)</option>
+                    <option value="多用途室(二)">多用途室(二)</option>
+                    <option value="禮堂">禮堂</option>
+                    <option value="普通課室">普通課室</option>
+                  </optgroup>
+                  <optgroup label="── 常規班級課室 ──">
+                    <option value="1A">1A</option><option value="1B">1B</option><option value="1C">1C</option><option value="1D">1D</option>
+                    <option value="2A">2A</option><option value="2B">2B</option><option value="2C">2C</option><option value="2D">2D</option>
+                    <option value="3A">3A</option><option value="3B">3B</option><option value="3C">3C</option><option value="3D">3D</option>
+                    <option value="4A">4A</option><option value="4B">4B</option><option value="4C">4C</option>
+                    <option value="5A">5A</option><option value="5B">5B</option><option value="5C">5C</option>
+                    <option value="6A">6A</option><option value="6B">6B</option><option value="6C">6C</option>
+                  </optgroup>
                 </select>
               </div>
             </div>
@@ -297,20 +316,10 @@
     // ================= 1. 設定與連線 =================
     const SUPABASE_URL = 'https://gvysbmflwfidmifwepxz.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2eXNibWZsd2ZpZG1pZndlcHh6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkyNzM4OTEsImV4cCI6MjEwNDg0OTg5MX0.7W8fBnbmZ6nOWpZohPvo_zCprZ7Ef0jvbG11iJrywrU';
-    
-    let _supabase = null;
-    let isConnected = false;
-    let currentUser = null;
-    let isCurrentUserAdmin = false; // 是否具備管理員權限
 
-    try {
-      if (window.supabase && SUPABASE_URL && SUPABASE_ANON_KEY) {
-        _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        isConnected = true;
-      }
-    } catch (e) {
-      console.warn("⚠️ 連線失敗", e);
-    }
+    const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    let currentUser = null;
+    let isCurrentUserAdmin = false;
 
     let totalStock = { iPad: 150, Mobile: 55 };
     const LESSON_NAMES = { 1: '第 1 節', 2: '第 2 節', 3: '第 3 節', 4: '第 4 節', 5: '第 5 節', 6: '第 6 節', 7: '放學' };
@@ -319,17 +328,15 @@
     let currentBookings = [];
     let teachersList = [];
 
-    // ================= 2. 頁面初始化與登入監聽 =================
+    // ================= 2. 初始化 =================
     document.addEventListener('DOMContentLoaded', async () => {
       const dateInput = document.getElementById('selectDate');
       dateInput.value = getTodayString();
       dateInput.addEventListener('change', fetchAndRender);
 
-      // 安全初始化各模組，彼此不互相阻塞
-      try { await checkAuth(); } catch(e) { console.error(e); }
-      try { await loadResources(); } catch(e) { console.error(e); }
-      try { await loadTeachers(); } catch(e) { console.error(e); }
-      
+      checkAuth();
+      loadResources();
+      loadTeachers();
       fetchAndRender();
       setupRealtime();
     });
@@ -346,9 +353,9 @@
       return `${dateStr} (${WEEKDAY_NAMES[d.getDay()]})`;
     }
 
-    // 🌟 動態向 Supabase admins 表查詢是否為管理員（不寫死任何電郵）
+    // 🌟 純資料庫動態驗證管理員身分
     async function checkIsAdminFromDB(email) {
-      if (!email || !isConnected || !_supabase) return false;
+      if (!email || !_supabase) return false;
       try {
         const { data, error } = await _supabase
           .from('admins')
@@ -361,8 +368,8 @@
       }
     }
 
+    // 身分認證檢查 (即時監聽 OAuth 登入跳轉)
     async function checkAuth() {
-      if (!isConnected || !_supabase) return;
       try {
         const { data: { session } } = await _supabase.auth.getSession();
         await updateAuthUI(session?.user || null);
@@ -391,7 +398,7 @@
         emailDisplay.textContent = user.email;
         loginAlert.classList.add('hidden');
 
-        // 動態判定管理員
+        // 向 admins 資料表查詢
         isCurrentUserAdmin = await checkIsAdminFromDB(user.email);
         if (isCurrentUserAdmin) {
           adminBadge.classList.remove('hidden');
@@ -410,7 +417,6 @@
     }
 
     async function loginWithGoogle() {
-      if (!isConnected || !_supabase) return;
       try {
         const { error } = await _supabase.auth.signInWithOAuth({
           provider: 'google',
@@ -421,19 +427,16 @@
         });
         if (error) alert('登入失敗：' + error.message);
       } catch (e) {
-        alert('叫用 Google 登入失敗，請檢查網絡！');
+        alert('無法啟動 Google 登入視窗！');
       }
     }
 
     async function logout() {
-      if (!isConnected || !_supabase) return;
       await _supabase.auth.signOut();
       location.reload();
     }
 
     function setupRealtime() {
-      if (!isConnected || !_supabase) return;
-
       _supabase
         .channel('public:bookings')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
@@ -457,7 +460,6 @@
         })
         .subscribe();
 
-      // 即時監聽管理員名單變動
       _supabase
         .channel('public:admins')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'admins' }, async () => {
@@ -468,46 +470,35 @@
 
     // ================= 3. 動態物資總量 =================
     async function loadResources() {
-      if (isConnected && _supabase) {
-        try {
-          const { data, error } = await _supabase.from('resources').select('name, total_qty');
-          if (!error && data && data.length > 0) {
-            data.forEach(item => {
-              if (item.name === 'iPad') totalStock.iPad = item.total_qty;
-              if (item.name === 'Mobile') totalStock.Mobile = item.total_qty;
-            });
-          }
-        } catch (e) {
-          console.warn("載入資源庫存出錯", e);
+      try {
+        const { data, error } = await _supabase.from('resources').select('name, total_qty');
+        if (!error && data && data.length > 0) {
+          data.forEach(item => {
+            if (item.name === 'iPad') totalStock.iPad = item.total_qty;
+            if (item.name === 'Mobile') totalStock.Mobile = item.total_qty;
+          });
         }
+      } catch (e) {
+        console.warn("載入資源庫存出錯", e);
       }
 
       document.getElementById('totalStockSubtitle').textContent = 
         `全校總量基準：iPad ${totalStock.iPad} 部 ｜ Mobile ${totalStock.Mobile} 部`;
-
-      const deviceSelect = document.getElementById('deviceType');
-      const selectedVal = deviceSelect.value || 'iPad';
-      deviceSelect.innerHTML = `
-        <option value="iPad">iPad</option>
-        <option value="Mobile">Mobile</option>
-      `;
-      deviceSelect.value = selectedVal;
+      renderDashboard();
     }
 
     // ================= 4. 載入教師名單 =================
     async function loadTeachers() {
-      if (isConnected && _supabase) {
-        try {
-          const { data, error } = await _supabase
-            .from('teachers')
-            .select('name, is_suspended, suspended_until, missed_count');
+      try {
+        const { data, error } = await _supabase
+          .from('teachers')
+          .select('name, is_suspended, suspended_until, missed_count');
 
-          if (!error && data && data.length > 0) {
-            teachersList = data.sort((a, b) => a.name.localeCompare(b.name, 'zh-HK'));
-          }
-        } catch (e) {
-          console.warn("載入教師名單出錯", e);
+        if (!error && data && data.length > 0) {
+          teachersList = data.sort((a, b) => a.name.localeCompare(b.name, 'zh-HK'));
         }
+      } catch (e) {
+        console.warn("載入教師名單出錯", e);
       }
 
       const select = document.getElementById('teacherSelect');
@@ -530,17 +521,16 @@
       renderFrontTeachersTable();
     }
 
-    // 渲染前台唯讀教師欠取名單
     function renderFrontTeachersTable() {
       const tbody = document.getElementById('frontTeachersTableBody');
-      const frontSuspendedCount = document.getElementById('frontSuspendedCount');
+      const badge = document.getElementById('frontSuspendedCount');
       tbody.innerHTML = '';
 
       const sorted = [...teachersList].sort((a, b) => 
         (b.is_suspended - a.is_suspended) || (b.missed_count - a.missed_count)
       );
 
-      frontSuspendedCount.textContent = `${sorted.filter(t => t.is_suspended).length} 位停借中`;
+      badge.textContent = `${sorted.filter(t => t.is_suspended).length} 位停借中`;
 
       sorted.forEach(t => {
         const tr = document.createElement('tr');
@@ -559,24 +549,22 @@
       });
     }
 
-    // ================= 5. 讀取預約與動態計算各節尚餘數量 =================
+    // ================= 5. 讀取預約與計算庫存 =================
     async function fetchAndRender() {
       const selectedDate = document.getElementById('selectDate').value;
       document.getElementById('displaySelectedDate').textContent = formatDateWithWeekday(selectedDate);
 
-      if (isConnected && _supabase) {
-        try {
-          const { data, error } = await _supabase
-            .from('bookings')
-            .select('*')
-            .eq('date', selectedDate);
+      try {
+        const { data, error } = await _supabase
+          .from('bookings')
+          .select('*')
+          .eq('date', selectedDate);
 
-          if (!error && data) {
-            currentBookings = data;
-          }
-        } catch (e) {
-          console.warn("讀取預約資料出錯", e);
+        if (!error && data) {
+          currentBookings = data;
         }
+      } catch (e) {
+        console.warn("讀取預約資料出錯", e);
       }
 
       renderDashboard();
@@ -602,7 +590,6 @@
       qtyInput.max = remaining;
     }
 
-    // ================= 6. 介面與分頁切換渲染 =================
     function switchFrontTab(sectionId) {
       document.querySelectorAll('.tab-section-content').forEach(el => el.classList.add('hidden'));
       document.querySelectorAll('.tab-btn').forEach(el => {
@@ -742,7 +729,7 @@
         return;
       }
 
-      if (isConnected && _supabase) {
+      if (_supabase) {
         const { error } = await _supabase.from('bookings').insert([{
           date, lesson, teacher_name, device_type, quantity, class: className, subject, room, remarks, status: 'pending', user_email: currentUser.email
         }]);
@@ -769,7 +756,7 @@
 
       if (!confirm(`確定要取消 ${teacherName} 的此筆借用記錄嗎？釋出的數量將即時回補。`)) return;
 
-      if (isConnected && _supabase) {
+      if (_supabase) {
         const { error } = await _supabase.from('bookings').delete().eq('id', id);
         if (error) {
           alert('刪除失敗：' + error.message);

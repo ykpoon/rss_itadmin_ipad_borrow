@@ -315,7 +315,7 @@
         }
       }
 
-      if (isAdmin) {
+ if (isAdmin) {
         adminEmailDisplay.textContent = currentAdminUser.email;
         accessDeniedBlock.classList.add('hidden');
         adminMainContent.classList.remove('hidden');
@@ -323,6 +323,7 @@
         loadAdminBookings();
         loadAdminTeachers();
         loadAdminResources();
+        loadDailyAdjustments(); // 👈 完美加在這邊，當管理員通過驗證後，立即載入特定日期調節名單！
       } else {
         adminEmailDisplay.textContent = currentAdminUser ? currentAdminUser.email : '未登入';
         accessDeniedBlock.classList.remove('hidden');
@@ -572,6 +573,72 @@ async function updateResourcesStock(event) {
     submitBtn.disabled = false;
     submitBtn.innerHTML = originalText;
   }
+}
+// ================= 6. 每日特定日期數量調節邏輯 =================
+
+// 載入當前所有的每日調節設定
+async function loadDailyAdjustments() {
+  const { data, error } = await _supabase
+    .from('daily_adjustments')
+    .select('*')
+    .order('date', { ascending: true });
+
+  const tbody = document.getElementById('dailyAdjustmentsTable');
+  tbody.innerHTML = '';
+
+  if (error || !data || data.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" class="py-4 text-center text-slate-400">目前暫無任何特別日期調整</td></tr>`;
+    return;
+  }
+
+  data.forEach(item => {
+    const tr = document.createElement('tr');
+    tr.className = "hover:bg-slate-50 transition border-b";
+    tr.innerHTML = `
+      <td class="py-2 px-2 font-semibold">${item.date}</td>
+      <td class="py-2 px-2"><span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${item.device_type === 'iPad' ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-purple-50 text-purple-700 border border-purple-200'}">${item.device_type}</span></td>
+      <td class="py-2 px-2 font-bold text-amber-600">${item.available_qty} 部</td>
+      <td class="py-2 px-2 text-slate-500">${item.reason || '--'}</td>
+      <td class="py-2 px-2 text-center">
+        <button onclick="deleteDailyAdjustment('${item.id}')" class="text-rose-500 hover:text-rose-700 transition" title="還原至預設基準">
+          <i class="fa-solid fa-trash"></i>
+        </button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// 儲存或覆蓋某天的特別庫存數量
+async function saveDailyAdjustment(event) {
+  event.preventDefault();
+  const date = document.getElementById('adjustDate').value;
+  const device_type = document.getElementById('adjustDevice').value;
+  const available_qty = parseInt(document.getElementById('adjustQty').value);
+  const reason = document.getElementById('adjustReason').value.trim();
+
+  if (!date) return;
+
+  // 💡 使用 upsert 機制：若當天已存在設定則直接覆蓋，不存在則新增
+  const { error } = await _supabase
+    .from('daily_adjustments')
+    .upsert({ date, device_type, available_qty, reason }, { onConflict: 'date,device_type' });
+
+  if (error) {
+    alert('設定失敗：' + error.message);
+  } else {
+    alert(`✅ 已成功將 ${date} 的 ${device_type} 可借用總量調整為 ${available_qty} 部！`);
+    document.getElementById('adjustQty').value = '';
+    document.getElementById('adjustReason').value = '';
+    loadDailyAdjustments();
+  }
+}
+
+// 刪除特定日期的調節設定（即恢復為全校預設基準）
+async function deleteDailyAdjustment(id) {
+  if (!confirm('確定要還原此特定日期的庫存設定，使其恢復為全校預設基準總量嗎？')) return;
+  await _supabase.from('daily_adjustments').delete().eq('id', id);
+  loadDailyAdjustments();
 }
 
   </script>

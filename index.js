@@ -696,4 +696,108 @@ window.handleFormSubmit = async function(event) {
   const className = document.getElementById('className').value;
   const subject = document.getElementById('subject').value;
   const room = document.getElementById('room').value;
-  const remarks = document.getElementById('remarks').value
+  const remarks = document.getElementById('remarks').value.trim();
+
+  if (!teacher_name) {
+    alert('請先選擇借用老師！');
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
+    }
+    return;
+  }
+
+  const teacherRecord = teachersList.find(t => t.name === teacher_name);
+  let isTeacherCurrentlySuspended = false;
+
+  if (teacherRecord && teacherRecord.is_suspended) {
+    if (teacherRecord.suspended_until) {
+      if (date <= teacherRecord.suspended_until) {
+        isTeacherCurrentlySuspended = true;
+      }
+    } else {
+      isTeacherCurrentlySuspended = true;
+    }
+  }
+
+  if (isTeacherCurrentlySuspended) {
+    const until = teacherRecord.suspended_until ? `至 ${teacherRecord.suspended_until}` : '';
+    alert(`❌ 借用失敗：${teacher_name} 老師在 ${date} 當天仍處於停止借用期 (${until})！`);
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
+    }
+    return;
+  }
+
+  const remaining = getRemainingStock(lesson, device_type);
+  let isWaiting = false;
+
+  if (quantity > remaining) {
+    const confirmWait = confirm(`⚠️ 該節 ${device_type} 剩餘庫存為 ${remaining} 部（不足 ${quantity} 部）。\n\n您是否要將此預約排入【候補名單 (Waiting List)】？\n若當天有同事未前來取機，將依候補順序為您安排。`);
+    
+    if (confirmWait) {
+      isWaiting = true;
+    } else {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
+      }
+      return;
+    }
+  }
+
+  if (_supabase) {
+    const bookingStatus = isWaiting ? 'waiting' : 'pending';
+    
+    const { error } = await _supabase.from('bookings').insert([{
+      date, 
+      lesson, 
+      teacher_name, 
+      device_type, 
+      quantity, 
+      class: className, 
+      subject, 
+      room, 
+      remarks: isWaiting ? `[候補] ${remarks}`.trim() : remarks, 
+      status: bookingStatus, 
+      user_email: currentUser.email
+    }]);
+
+    if (error) {
+      alert('登記失敗：' + error.message);
+    } else {
+      if (isWaiting) {
+        alert(`📝 已成功為您排入候補！當前狀態為：【候補中】。`);
+      } else {
+        alert(`✅ 借用成功！已為 ${teacher_name} 登記 ${LESSON_NAMES[lesson]} 的 ${device_type} (${quantity} 部)。`);
+      }
+      document.getElementById('bookingForm').reset();
+      fetchAndRender();
+    }
+  }
+
+  if (submitBtn) {
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
+  }
+};
+
+// ================= 9. 取消借用 =================
+window.deleteBooking = async function(id, teacherName) {
+  if (!currentUser) {
+    alert('請先登入！');
+    return;
+  }
+
+  if (!confirm(`確定要取消 ${teacherName} 的此筆借用記錄嗎？釋出的數量將即時回補。`)) return;
+
+  if (_supabase) {
+    const { error } = await _supabase.from('bookings').delete().eq('id', id);
+    if (error) {
+      alert('刪除失敗：' + error.message);
+    } else {
+      fetchAndRender();
+    }
+  }
+};

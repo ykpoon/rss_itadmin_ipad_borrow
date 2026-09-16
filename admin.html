@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>IT 管理員後台 - 設備借用與黑名單管理</title>
   <!-- Tailwind CSS CDN -->
-  <script src="https://tailwindcss.com"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
   <!-- FontAwesome 圖標庫 -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <!-- Google Fonts: Inter & Noto Sans TC -->
@@ -33,7 +33,7 @@
 </head>
 <body class="custom-gradient-bg text-slate-700 min-h-screen flex flex-col">
 
-  <!-- 💡 IT 後台專屬 - 1.5 秒開場載入動畫遮罩 (Welcome Loading Splash) -->
+  <!-- 💡 新增：IT 後台專屬 - 1.5 秒開場載入動畫遮罩 (Welcome Loading Splash) -->
   <div id="app-loader" class="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-teal-50/95 backdrop-blur-md transition-all duration-700 ease-in-out">
     <div class="flex flex-col items-center max-w-sm px-6 text-center space-y-6">
       <div class="relative">
@@ -69,7 +69,7 @@
     }
   </style>
 
-  <!-- 頂部管理員專用導航列 -->
+  <!-- 頂部導航列：深邃暗色搭藍綠光澤 -->
   <header class="bg-slate-900 text-white shadow-md sticky top-0 z-50">
     <div class="max-w-7xl mx-auto px-6 py-4 flex flex-wrap justify-between items-center gap-4">
       <div class="flex items-center space-x-3">
@@ -78,7 +78,7 @@
         </div>
         <div>
           <div class="flex items-center gap-2">
-            <h1 class="text-lg font-extrabold tracking-tight text-white">IT 設備借用管理後台</h1>
+            <h1 class="text-lg font-extrabold tracking-tight">IT 設備借用管理後台</h1>
             <span class="text-[10px] bg-amber-400 text-amber-950 font-black px-2 py-0.5 rounded-md">Admin Portal</span>
           </div>
           <p class="text-xs text-slate-400">借還審核 · 欠取機統計 · 物資調配</p>
@@ -87,7 +87,7 @@
 
       <!-- 右側：登入身分與前台快速連結 -->
       <div class="flex items-center space-x-3 text-sm">
-        <a href="index.html" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2 rounded-xl border border-slate-700 transition flex items-center gap-1.5 font-bold">
+        <a href="index.html" class="bg-slate-800 hover:bg-slate-705 text-slate-200 px-4 py-2 rounded-xl border border-slate-700 transition flex items-center gap-1.5 font-bold">
           <i class="fa-solid fa-arrow-left"></i> 返回預約前台
         </a>
         <div id="adminAuthInfo" class="flex items-center space-x-2 bg-slate-800 px-4 py-2 rounded-xl border border-slate-700">
@@ -128,7 +128,7 @@
       </button>
     </div>
 
-    <!-- ================= 頁籤 1：借還審核 (已完美還原且新增備註資訊欄位) ================= -->
+    <!-- ================= 頁籤 1：借還審核 ================= -->
     <section id="tab-bookings" class="tab-content space-y-6">
       <div class="tech-card p-5 rounded-2xl flex flex-wrap justify-between items-center gap-4">
         <div class="flex items-center gap-3">
@@ -156,8 +156,6 @@
                 <th class="py-3 px-4">設備 / 數量</th>
                 <th class="py-3 px-4">班別 / 科目 / 地點</th>
                 <th class="py-3 px-4">登記者電郵</th>
-                <!-- 💡 這裡已加上您要求的「備註資訊」欄位 -->
-                <th class="py-3 px-4">備註資訊</th>
                 <th class="py-3 px-4">目前狀態</th>
                 <th class="py-3 px-4 text-center">狀態審核操作</th>
               </tr>

@@ -656,8 +656,7 @@ function renderDashboard() {
 
 
 
-// ================= 7. 渲染當日借用詳情清單 =================
-// ================= index.js 中修改後的 renderTable 函數 (已新增：本人可修改數量功能) =================
+// ================= index.js 中的 renderTable 函數 (已修正：候補標籤強制換行) =================
 function renderTable() {
   const tbody = document.getElementById('bookingsTableBody');
   const emptyMsg = document.getElementById('emptyMessage');
@@ -696,6 +695,7 @@ function renderTable() {
     const canDelete = isCurrentUserAdmin || isOwner;
     const isWaiting = (item.remarks && item.remarks.includes('[候補]')) || item.status === 'waiting';
 
+    // 💡 已修正：將候補標籤加上 block mt-1，使其百分之百強制在下一行顯示，不再發生字體拆開折行
     let waitingBadgeHTML = '';
     if (isWaiting) {
       const key = `${item.lesson}_${item.device_type}`;
@@ -703,7 +703,7 @@ function renderTable() {
       const waitOrder = waitingCounters[key];
 
       waitingBadgeHTML = `
-        <span class="ml-1 px-1.5 py-0.5 bg-amber-500 text-white text-[10px] rounded-sm font-bold border border-amber-600 animate-pulse">
+        <span class="block mt-1.5 w-fit px-2 py-0.5 bg-amber-500 text-white text-[10px] rounded-md font-black border border-amber-600 animate-pulse tracking-wider">
           候補 ${waitOrder}
         </span>
       `;
@@ -727,7 +727,6 @@ function renderTable() {
       <td class="py-2.5 px-3 font-medium">${item.room}</td>
       <td class="py-2.5 px-3 text-center">
         <div class="flex items-center justify-center space-x-2">
-          <!-- 💡 僅限本人或管理員可以修改數量 -->
           ${canDelete ? `
             <button onclick="editQuantity('${item.id}', '${item.device_type}', ${item.lesson}, ${item.quantity}, '${item.teacher_name}')" class="text-teal-600 hover:text-teal-700 p-1.5 transition rounded-lg hover:bg-teal-50" title="修改借用數量">
               <i class="fa-solid fa-pen-to-square"></i>
@@ -746,6 +745,7 @@ function renderTable() {
     tbody.appendChild(tr);
   });
 }
+
 
 // ================= 💡 新增：處理修改數量的函數 =================
 window.editQuantity = async function(bookingId, deviceType, lesson, currentQty, teacherName) {

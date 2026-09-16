@@ -697,6 +697,57 @@ function renderTable() {
 
     // 💡 已修正：將候補標籤加上 block mt-1，使其百分之百強制在下一行顯示，不再發生字體拆開折行
     let waitingBadgeHTML = '';
+      finalSortedList.forEach(item => {
+    const isOwner = currentUser && (item.user_email && currentUser.email === item.user_email);
+    const canDelete = isCurrentUserAdmin || isOwner;
+    const isWaiting = (item.remarks && item.remarks.includes('[候補]')) || item.status === 'waiting';
+
+    // 💡 1. 原有的候補橘色標籤（已換行）
+    let waitingBadgeHTML = '';
+    if (isWaiting) {
+      const key = `${item.lesson}_${item.device_type}`;
+      waitingCounters[key] = (waitingCounters[key] || 0) + 1;
+      const waitOrder = waitingCounters[key];
+
+      waitingBadgeHTML = `
+        <span class="block mt-1.5 w-fit px-2 py-0.5 bg-amber-500 text-white text-[10px] rounded-md font-black border border-amber-600 animate-pulse tracking-wider">
+          候補 ${waitOrder}
+        </span>
+      `;
+    }
+
+    // 💡 2. 新增：偵測是否為候補成功
+    const isPromoted = item.remarks && item.remarks.includes('[候補成功]');
+    let promotedBadgeHTML = '';
+    if (isPromoted) {
+      promotedBadgeHTML = `
+        <span class="block mt-1.5 w-fit px-2 py-0.5 bg-teal-100 text-teal-800 text-[10px] rounded-md font-extrabold border border-teal-200 shadow-xs animate-bounce tracking-wider">
+          🎉 候補成功
+        </span>
+      `;
+    }
+
+    const tr = document.createElement('tr');
+    tr.className = isWaiting ? "bg-amber-50/40 hover:bg-amber-50/70 transition" : "hover:bg-slate-50/80 transition";
+    tr.innerHTML = `
+      <td class="py-2.5 px-3 font-semibold text-slate-850">
+        ${LESSON_NAMES[item.lesson]}
+        ${isWaiting ? '<span class="block text-[10px] text-amber-600 font-bold">(候補隊列)</span>' : ''}
+      </td>
+      <td class="py-2.5 px-3 font-bold text-teal-700">${item.teacher_name}</td>
+      <td class="py-2.5 px-3 text-slate-800 font-bold">
+        <span class="${item.device_type === 'iPad' ? 'text-teal-600' : 'text-purple-600'}">
+          ${item.device_type} × ${item.quantity}
+        </span>
+        ${waitingBadgeHTML}
+        ${promotedBadgeHTML} <!-- 💡 在前台設備數量下方顯示候補成功徽章 -->
+      </td>
+      <td class="py-2.5 px-3 font-medium">${item.class} (${item.subject})</td>
+      <td class="py-2.5 px-3 font-medium">${item.room}</td>
+      <td class="py-2.5 px-3 text-center">
+        ... (下方操作按鈕代碼保持原樣) ...
+
+
     if (isWaiting) {
       const key = `${item.lesson}_${item.device_type}`;
       waitingCounters[key] = (waitingCounters[key] || 0) + 1;
@@ -905,6 +956,7 @@ window.handleFormSubmit = async function(event) {
 };
 
 // ================= index.js 中的 deleteBooking 函數 (已修正：精確限制在當天當節自動遞補) =================
+// ================= index.js 中的 deleteBooking 函數 (已修正：當天限定遞補 + 智能自動拆單 + 寫入候補成功識別標記) =================
 window.deleteBooking = async function(id, teacherName) {
   if (!currentUser) {
     alert('請先登入！');
@@ -960,32 +1012,37 @@ window.deleteBooking = async function(id, teacherName) {
           if (releasedQty <= 0) break; // 釋放庫存已分派光，停止
 
           if (waiter.quantity <= releasedQty) {
-            // 情況 A：庫存足夠 -> 直接全額補上 (扶正)
+            // 💡 情況 A：庫存足夠 waiter 的全額需求 -> 直接全額補上 (扶正)
             releasedQty -= waiter.quantity;
             
+            // 💡 優化：在備註（remarks）前加上 [候補成功] 的識別標記，同時移除舊的 [候補]
             const cleanedRemarks = (waiter.remarks || '').replace('[候補]', '').trim();
+            const promotedRemarks = `[候補成功] ${cleanedRemarks}`.trim();
+
             updatePromises.push(
               _supabase.from('bookings')
-                .update({ status: 'pending', remarks: cleanedRemarks })
+                .update({ status: 'pending', remarks: promotedRemarks })
                 .eq('id', waiter.id)
             );
             notifyMessages.push(`🎉 當天候補第 1 順位 ${waiter.teacher_name} 老師（${waiter.quantity} 部 ${deviceType}）已全額成功補上！`);
 
           } else {
-            // 情況 B：庫存不足 -> 智能拆單
+            // 💡 情況 B：庫存不足 -> 智能拆單
             const partQty = releasedQty; // 拿走剩下所有的可用數量
             const remainQty = waiter.quantity - partQty; // 剩餘繼續排隊的數量
             releasedQty = 0; // 庫存分派完畢
 
-            // 1. 修改原本的候補單：數量改為 partQty 部，並轉為正式預約 (pending)
+            // 1. 修改原本的候補單：數量改為 partQty 部，轉為正式預約 (pending)，備註加上 [候補成功]
             const cleanedRemarks = (waiter.remarks || '').replace('[候補]', '').trim();
+            const promotedRemarks = `[候補成功] ${cleanedRemarks}`.trim();
+
             updatePromises.push(
               _supabase.from('bookings')
-                .update({ quantity: partQty, status: 'pending', remarks: cleanedRemarks })
+                .update({ quantity: partQty, status: 'pending', remarks: promotedRemarks })
                 .eq('id', waiter.id)
             );
 
-            // 2. 自動在資料庫中「新增一筆新候補預約」：數量為 remainQty，繼續排隊
+            // 2. 自動在資料庫中「新增一筆新候補預約」：數量為 remainQty，繼續排隊並保持原建立時間（保持 [候補] 狀態）
             updatePromises.push(
               _supabase.from('bookings').insert([{
                 date: waiter.date,

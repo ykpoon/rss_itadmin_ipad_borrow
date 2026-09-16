@@ -100,6 +100,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         loader.classList.add('hidden');
       }, 700);
     }
+  }, 1100); // 👈 1100 毫秒 (1.1秒) 保證加載體驗既流暢、又有充足的儀式感
   }
 });
 

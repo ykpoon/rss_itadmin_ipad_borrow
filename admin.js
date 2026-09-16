@@ -120,6 +120,7 @@ function switchTab(tabId) {
 }
 
 // ================= 3. 借還審核控制 =================
+// ================= admin.js 中的 loadAdminBookings 函數 (已修正：新增備註欄與候補成功徽章) =================
 async function loadAdminBookings() {
   const dateInput = document.getElementById('adminQueryDate');
   if (!dateInput) return;
@@ -154,12 +155,34 @@ async function loadAdminBookings() {
     if (item.status === 'missed') statusBadge = '<span class="px-2 py-0.5 bg-rose-100 text-rose-800 rounded font-semibold">欠取機</span>';
     if (item.status === 'waiting') statusBadge = '<span class="px-2 py-0.5 bg-yellow-400 text-yellow-950 rounded font-bold animate-pulse">候補中 (Wait)</span>';
 
+    // 💡 1. 檢查這筆預約是否為「候補成功」
+    const isPromoted = item.remarks && item.remarks.includes('[候補成功]');
+    let promotedBadgeHTML = '';
+    if (isPromoted) {
+      promotedBadgeHTML = `
+        <span class="block mt-1 w-fit px-1.5 py-0.5 bg-teal-500 text-white text-[10px] rounded font-extrabold border border-teal-600 animate-pulse tracking-wider">
+          候補遞補
+        </span>
+      `;
+    }
+
+    // 💡 2. 過濾備註中的 [候補成功] 和 [候補] 技術性文字，保持介面最乾淨
+    let cleanRemarksDisplay = item.remarks || '';
+    cleanRemarksDisplay = cleanRemarksDisplay.replace('[候補成功]', '').replace('[候補]', '').trim();
+    if (!cleanRemarksDisplay) {
+      cleanRemarksDisplay = '<span class="text-slate-300">--</span>';
+    }
+
     tr.innerHTML = `
       <td class="py-3 px-4 font-bold text-slate-800">${LESSON_NAMES[item.lesson]}</td>
       <td class="py-3 px-4 font-semibold text-indigo-700">${item.teacher_name}</td>
-      <td class="py-3 px-4 font-bold">${item.device_type} × ${item.quantity}</td>
+      <td class="py-3 px-4 font-bold">
+        ${item.device_type} × ${item.quantity}
+        ${promotedBadgeHTML} <!-- 💡 在設備下方顯示候補遞補徽章 -->
+      </td>
       <td class="py-3 px-4">${item.class} · ${item.subject} (${item.room})</td>
       <td class="py-3 px-4 text-slate-400 font-mono text-[11px]">${item.user_email || '無記錄'}</td>
+      <td class="py-3 px-4 text-slate-600 font-medium text-xs max-w-[150px] truncate" title="${item.remarks || ''}">${cleanRemarksDisplay}</td> <!-- 💡 新增：備註 TD 欄位 -->
       <td class="py-3 px-4">${statusBadge}</td>
       <td class="py-3 px-4 text-center space-x-1">
         <button onclick="updateBookingStatus('${item.id}', 'borrowed')" class="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded font-medium transition" title="確認借出（候補扶正）">
@@ -179,6 +202,7 @@ async function loadAdminBookings() {
     tbody.appendChild(tr);
   });
 }
+
 
 function updateStatusCounters(list) {
   const pendingEl = document.getElementById('countPending');

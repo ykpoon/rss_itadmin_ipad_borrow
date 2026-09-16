@@ -657,6 +657,7 @@ function renderDashboard() {
 
 
 // ================= 7. 渲染當日借用詳情清單 =================
+// ================= index.js 中修改後的 renderTable 函數 (已新增：本人可修改數量功能) =================
 function renderTable() {
   const tbody = document.getElementById('bookingsTableBody');
   const emptyMsg = document.getElementById('emptyMessage');
@@ -711,34 +712,86 @@ function renderTable() {
     const tr = document.createElement('tr');
     tr.className = isWaiting ? "bg-amber-50/40 hover:bg-amber-50/70 transition" : "hover:bg-slate-50/80 transition";
     tr.innerHTML = `
-      <td class="py-2.5 px-3 font-semibold text-slate-800">
+      <td class="py-2.5 px-3 font-semibold text-slate-850">
         ${LESSON_NAMES[item.lesson]}
         ${isWaiting ? '<span class="block text-[10px] text-amber-600 font-bold">(候補隊列)</span>' : ''}
       </td>
-      <td class="py-2.5 px-3 font-medium text-indigo-700">${item.teacher_name}</td>
-      <td class="py-2.5 px-3 text-slate-700 font-semibold">
-        <span class="${item.device_type === 'iPad' ? 'text-blue-600' : 'text-purple-600'}">
+      <td class="py-2.5 px-3 font-bold text-teal-700">${item.teacher_name}</td>
+      <td class="py-2.5 px-3 text-slate-800 font-bold">
+        <span class="${item.device_type === 'iPad' ? 'text-teal-600' : 'text-purple-600'}">
           ${item.device_type} × ${item.quantity}
         </span>
         ${waitingBadgeHTML}
       </td>
-      <td class="py-2.5 px-3">${item.class} (${item.subject})</td>
-      <td class="py-2.5 px-3">${item.room}</td>
+      <td class="py-2.5 px-3 font-medium">${item.class} (${item.subject})</td>
+      <td class="py-2.5 px-3 font-medium">${item.room}</td>
       <td class="py-2.5 px-3 text-center">
-        ${canDelete ? `
-          <button onclick="deleteBooking('${item.id}', '${item.teacher_name}')" class="text-rose-500 hover:text-rose-700 p-1 transition" title="取消登記">
-            <i class="fa-solid fa-trash-can"></i>
-          </button>
-        ` : `
-          <span class="text-slate-300 text-[11px] cursor-not-allowed" title="非本人登記，無權取消">
-            <i class="fa-solid fa-lock"></i>
-          </span>
-        `}
+        <div class="flex items-center justify-center space-x-2">
+          <!-- 💡 僅限本人或管理員可以修改數量 -->
+          ${canDelete ? `
+            <button onclick="editQuantity('${item.id}', '${item.device_type}', ${item.lesson}, ${item.quantity}, '${item.teacher_name}')" class="text-teal-600 hover:text-teal-700 p-1.5 transition rounded-lg hover:bg-teal-50" title="修改借用數量">
+              <i class="fa-solid fa-pen-to-square"></i>
+            </button>
+            <button onclick="deleteBooking('${item.id}', '${item.teacher_name}')" class="text-rose-500 hover:text-rose-700 p-1.5 transition rounded-lg hover:bg-rose-50" title="取消登記">
+              <i class="fa-solid fa-trash-can"></i>
+            </button>
+          ` : `
+            <span class="text-slate-300 text-[11px] cursor-not-allowed" title="非本人登記，無權操作">
+              <i class="fa-solid fa-lock"></i>
+            </span>
+          `}
+        </div>
       </td>
     `;
     tbody.appendChild(tr);
   });
 }
+
+// ================= 💡 新增：處理修改數量的函數 =================
+window.editQuantity = async function(bookingId, deviceType, lesson, currentQty, teacherName) {
+  if (!currentUser) {
+    alert('請先登入！');
+    return;
+  }
+
+  // 1. 彈出輸入框讓老師輸入新數量
+  const input = prompt(`【修改借用數量】\n\n您目前為 ${teacherName} 登記了 ${deviceType} x ${currentQty} 部。\n請輸入您想修改後的新數量：`, currentQty);
+  
+  if (input === null) return; // 使用者按取消
+
+  const newQty = parseInt(input.trim());
+  if (isNaN(newQty) || newQty <= 0) {
+    alert('❌ 請輸入有效的正整數！');
+    return;
+  }
+
+  if (newQty === currentQty) return; // 數量沒有變動
+
+  // 2. 💡 核對剩餘庫存（必須扣除該筆登記自己原本佔用的庫存）
+  const remaining = getRemainingStock(lesson, deviceType);
+  const totalAvailable = remaining + currentQty; // 當前可用量 + 原本佔用量 = 理論上最大可調整上限
+
+  if (newQty > totalAvailable) {
+    alert(`❌ 修改失敗：\n該節的 ${deviceType} 剩餘庫存不足！\n\n理論上您最大僅可調整至 ${totalAvailable} 部。\n如果您需要更多設備，請保持原樣或另行排隊候補。`);
+    return;
+  }
+
+  // 3. 執行資料庫更新
+  if (_supabase) {
+    const { error } = await _supabase
+      .from('bookings')
+      .update({ quantity: newQty })
+      .eq('id', bookingId);
+
+    if (error) {
+      alert('❌ 修改數量失敗：' + error.message);
+    } else {
+      alert(`✅ 數量修改成功！已為 ${teacherName} 將 ${deviceType} 的借用數量調整為 ${newQty} 部。\n\n您的隊列位置已成功保持！`);
+      fetchAndRender(); // 即時重新載入並渲染
+    }
+  }
+};
+
 
 // ================= 8. 提交借用表單 =================
 window.handleFormSubmit = async function(event) {

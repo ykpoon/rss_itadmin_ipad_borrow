@@ -697,7 +697,7 @@ function renderTable() {
       `;
     }
 
-    // 💡 2. 新增：偵測是否為候補成功
+    // 💡 2. 偵測並顯示「🎉 候補成功」綠色徽章
     const isPromoted = item.remarks && item.remarks.includes('[候補成功]');
     let promotedBadgeHTML = '';
     if (isPromoted) {
@@ -721,7 +721,7 @@ function renderTable() {
           ${item.device_type} × ${item.quantity}
         </span>
         ${waitingBadgeHTML}
-        ${promotedBadgeHTML} <!-- 💡 在前台設備數量下方顯示候補成功徽章 -->
+        ${promotedBadgeHTML} <!-- 💡 顯示候補成功徽章 -->
       </td>
       <td class="py-2.5 px-3 font-medium">${item.class} (${item.subject})</td>
       <td class="py-2.5 px-3 font-medium">${item.room}</td>
@@ -746,7 +746,6 @@ function renderTable() {
   });
 }
 
-// ================= 💡 新增：處理修改數量的函數 =================
 window.editQuantity = async function(bookingId, deviceType, lesson, currentQty, teacherName) {
   if (!currentUser) {
     alert('請先登入！');

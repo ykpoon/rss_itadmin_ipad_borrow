@@ -79,30 +79,33 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // 執行資料載入與認證
+   // ================= 執行資料載入與認證 (已修正：1.5秒安全延遲開場動畫) =================
   try {
+    // 1. 先在背景默默把所有 Supabase 資料載入完成
     await checkAuth();
     await loadResources(); 
     await loadTeachers();  
-    await fetchMonthlyData(); // 載入當月月曆數據
+    await fetchMonthlyData(); 
     await fetchAndRender();
     setupRealtime();
   } catch (err) {
-    console.error("初始化載入失敗:", err);
-  } finally {
-    // 💡 新增：無論載入成功或失敗，在全部資源初始化完畢後，優雅淡出開場動畫
+    console.error("背景初始化載入失敗:", err);
+  }
+
+  // 2. 💡 獨立出來的動畫控制：保證無論資料載入成功還是失敗，都一定會在 1.5 秒 (1500ms) 後淡出遮罩
+  setTimeout(() => {
     const loader = document.getElementById('app-loader');
     if (loader) {
-      // 1. 加上平移與淡出樣式
+      // 加上平移與淡出樣式
       loader.classList.add('opacity-0', '-translate-y-full');
-      // 2. 在動畫完成後 (0.7 秒)，徹底從 DOM 樹中隱藏，防止阻擋滑鼠點擊
+      // 在動畫完成後 (0.7秒)，徹底隱藏
       setTimeout(() => {
         loader.classList.add('hidden');
       }, 700);
     }
-  }, 1100); // 👈 1100 毫秒 (1.1秒) 保證加載體驗既流暢、又有充足的儀式感
-  }
+  }, 1500); // 👈 這裡設為 1500 毫秒 (1.5秒)，保證順暢運作且不會卡死！
 });
+
 
 
 function getTodayString() {

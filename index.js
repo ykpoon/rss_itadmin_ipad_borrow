@@ -89,8 +89,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupRealtime();
   } catch (err) {
     console.error("初始化載入失敗:", err);
+  } finally {
+    // 💡 新增：無論載入成功或失敗，在全部資源初始化完畢後，優雅淡出開場動畫
+    const loader = document.getElementById('app-loader');
+    if (loader) {
+      // 1. 加上平移與淡出樣式
+      loader.classList.add('opacity-0', '-translate-y-full');
+      // 2. 在動畫完成後 (0.7 秒)，徹底從 DOM 樹中隱藏，防止阻擋滑鼠點擊
+      setTimeout(() => {
+        loader.classList.add('hidden');
+      }, 700);
+    }
   }
 });
+
 
 function getTodayString() {
   const today = new Date();

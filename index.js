@@ -905,20 +905,121 @@ window.handleFormSubmit = async function(event) {
 };
 
 // ================= 9. 取消借用 =================
+// ================= index.js 中的 deleteBooking 函數 (已重構：支援智能自動候補與拆單分配) =================
 window.deleteBooking = async function(id, teacherName) {
   if (!currentUser) {
     alert('請先登入！');
     return;
   }
 
-  if (!confirm(`確定要取消 ${teacherName} 的此筆借用記錄嗎？釋出的數量將即時回補。`)) return;
+  if (!confirm(`確定要取消 ${teacherName} 的此筆借用記錄嗎？\n釋出的庫存將優先自動分派給候補的同事。`)) return;
 
-  if (_supabase) {
-    const { error } = await _supabase.from('bookings').delete().eq('id', id);
-    if (error) {
-      alert('刪除失敗：' + error.message);
-    } else {
-      fetchAndRender();
+  if (!_supabase) return;
+
+  try {
+    // 1. 先取得即將被刪除的預約資訊（為了知道釋出了什麼設備、哪一節課、多少數量）
+    const { data: targetBooking, error: fetchErr } = await _supabase
+      .from('bookings')
+      .select('lesson, device_type, quantity, status')
+      .eq('id', id)
+      .single();
+
+    if (fetchErr || !targetBooking) {
+      alert('無法取得預約資訊，或預約已被取消。');
+      return;
     }
+
+    // 2. 執行刪除
+    const { error: deleteErr } = await _supabase.from('bookings').delete().eq('id', id);
+    if (deleteErr) {
+      alert('刪除失敗：' + deleteErr.message);
+      return;
+    }
+
+    // 3. 💡 核心：如果被刪除的原本不是候補（即釋放了真實庫存），則啟動「自動遞補與拆單」邏輯
+    if (targetBooking.status !== 'waiting') {
+      let releasedQty = targetBooking.quantity; // 釋放出的總可用數量
+      const lesson = targetBooking.lesson;
+      const deviceType = targetBooking.device_type;
+
+      // 4. 尋找這一節課同設備的「所有候補中」的預約，按建立時間先後排序（最先排隊的優先候補）
+      const { data: waitingList, error: waitErr } = await _supabase
+        .from('bookings')
+        .select('*')
+        .eq('lesson', lesson)
+        .eq('device_type', deviceType)
+        .eq('status', 'waiting')
+        .order('created_at', { ascending: true });
+
+      if (!waitErr && waitingList && waitingList.length > 0) {
+        let updatePromises = [];
+        let notifyMessages = [];
+
+        for (let waiter of waitingList) {
+          if (releasedQty <= 0) break; // 釋放的庫存已經分派光了，停止分配
+
+          if (waiter.quantity <= releasedQty) {
+            // 💡 情況 A：庫存足夠 waiter 的全額需求 -> 直接將他全額補上（扶正）
+            releasedQty -= waiter.quantity;
+            
+            // 更新狀態為 pending（正式），並清理備註中的 [候補] 字眼
+            const cleanedRemarks = (waiter.remarks || '').replace('[候補]', '').trim();
+            updatePromises.push(
+              _supabase.from('bookings')
+                .update({ status: 'pending', remarks: cleanedRemarks })
+                .eq('id', waiter.id)
+            );
+            notifyMessages.push(`🎉 候補第 1 順位 ${waiter.teacher_name} 老師（${waiter.quantity} 部 ${deviceType}）已全額成功補上！`);
+
+          } else {
+            // 💡 情況 B：庫存不足以滿足 waiter 的全額需求 -> 執行「智能拆單」
+            const partQty = releasedQty; // 先拿走剩下所有的可用數量
+            const remainQty = waiter.quantity - partQty; // 剩餘繼續排隊的數量
+            releasedQty = 0; // 釋放庫存已全部分配完畢
+
+            // 1. 修改原本這筆候補單：將數量修改為能分到的 partQty 部，並轉為正式預約 (pending)
+            const cleanedRemarks = (waiter.remarks || '').replace('[候補]', '').trim();
+            updatePromises.push(
+              _supabase.from('bookings')
+                .update({ quantity: partQty, status: 'pending', remarks: cleanedRemarks })
+                .eq('id', waiter.id)
+            );
+
+            // 2. 自動在資料庫中「新增一筆新候補預約」：數量為 remainQty 剩餘的部分，繼續維持 waiting 狀態排隊
+            updatePromises.push(
+              _supabase.from('bookings').insert([{
+                date: waiter.date,
+                lesson: waiter.lesson,
+                teacher_name: waiter.teacher_name,
+                device_type: waiter.device_type,
+                quantity: remainQty,
+                class: waiter.class,
+                subject: waiter.subject,
+                room: waiter.room,
+                remarks: `[候補] ${waiter.remarks || ''}`.replace('[候補] [候補]', '[候補]').trim(),
+                status: 'waiting',
+                user_email: waiter.user_email,
+                created_at: waiter.created_at // 💡 保持完全一致的建立時間，確保他在隊列中的優先權絕對不變！
+              }])
+            );
+            notifyMessages.push(`⚖️ 因庫存限制，已為 ${waiter.teacher_name} 老師拆單：\n- 成功補上 ${partQty} 部\n- 剩餘 ${remainQty} 部繼續在候補名單中排隊！`);
+          }
+        }
+
+        // 5. 執行所有分派更新
+        if (updatePromises.length > 0) {
+          await Promise.all(updatePromises);
+          alert(`✅ 取消預約成功！釋出庫存已分派完成：\n\n` + notifyMessages.join('\n\n'));
+        }
+      }
+    }
+
+    // 重新渲染前台數據
+    fetchAndRender();
+
+  } catch (err) {
+    console.error("取消預約並自動遞補出錯:", err);
+    alert('取消失敗，請稍後再試。');
   }
 };
+

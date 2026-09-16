@@ -7,17 +7,7 @@ const LESSON_NAMES = window.LESSON_NAMES;
 
 let currentAdminUser = null;
 
-
-// admin.js
-// IT 管理員後台 - 設備借用與黑名單管理邏輯控制
-
-// 💡 從 window 物件中取得共用的 Supabase Client 與課節對照表
-const _supabase = window._supabase;
-const LESSON_NAMES = window.LESSON_NAMES;
-
-let currentAdminUser = null;
-
-// ================= 1. 初始化與生命週期 (已修正：1.5秒安全延遲動畫) =================
+// ================= 1. 初始化與生命週期 (安全載入) =================
 document.addEventListener('DOMContentLoaded', async () => {
   const dateInput = document.getElementById('adminQueryDate');
   if (dateInput) {
@@ -37,17 +27,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.error("後台認證初始化失敗:", err);
   }
 
-  // 2. 💡 獨立控制動畫：保證在剛好 1.5 秒 (1500ms) 後，優雅平移且淡出遮罩，絕對不卡死！
+  // 2. 💡 獨立控制動畫：保證在剛好 1.5 秒 (1500ms) 後淡出遮罩，絕對不卡死！
   setTimeout(() => {
     const loader = document.getElementById('app-loader');
     if (loader) {
-      // 加上平移與淡出樣式 (0.7秒 transition)
       loader.classList.add('opacity-0', '-translate-y-full');
       setTimeout(() => {
         loader.classList.add('hidden');
       }, 700);
     }
-  }, 700);
+  }, 1500);
 });
 
 function getTodayString() {
@@ -68,7 +57,6 @@ async function verifyAdminAuth() {
 
   let isAdmin = false;
   if (currentAdminUser && currentAdminUser.email) {
-    // 向 admins 表查詢
     try {
       const { data, error } = await _supabase
         .from('admins')
@@ -85,10 +73,11 @@ async function verifyAdminAuth() {
     if (accessDeniedBlock) accessDeniedBlock.classList.add('hidden');
     if (adminMainContent) adminMainContent.classList.remove('hidden');
 
+    // 💡 呼叫下方宣告的標準函數
     loadAdminBookings();
     loadAdminTeachers();
     loadAdminResources();
-    loadDailyAdjustments(); // 當管理員通過驗證後，立即載入特定日期調節名單
+    loadDailyAdjustments();
   } else {
     if (adminEmailDisplay) adminEmailDisplay.textContent = currentAdminUser ? currentAdminUser.email : '未登入';
     if (accessDeniedBlock) accessDeniedBlock.classList.remove('hidden');
@@ -96,8 +85,8 @@ async function verifyAdminAuth() {
   }
 }
 
-// 掛載全域按鈕認證事件
-window.loginWithGoogle = async function() {
+// 認證相關
+async function loginWithGoogle() {
   const { error } = await _supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
@@ -106,14 +95,14 @@ window.loginWithGoogle = async function() {
     }
   });
   if (error) alert('登入失敗：' + error.message);
-};
+}
 
-window.logout = async function() {
+async function logout() {
   await _supabase.auth.signOut();
   location.reload();
-};
+}
 
-window.switchTab = function(tabId) {
+function switchTab(tabId) {
   document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
   document.querySelectorAll('.tab-btn').forEach(el => {
     el.classList.remove('border-indigo-600', 'text-indigo-600', 'font-bold');
@@ -128,10 +117,10 @@ window.switchTab = function(tabId) {
     activeBtn.classList.add('border-indigo-600', 'text-indigo-600', 'font-bold');
     activeBtn.classList.remove('border-transparent', 'text-slate-500');
   }
-};
+}
 
 // ================= 3. 借還審核控制 =================
-window.loadAdminBookings = async function() {
+async function loadAdminBookings() {
   const dateInput = document.getElementById('adminQueryDate');
   if (!dateInput) return;
   const selectedDate = dateInput.value;
@@ -189,7 +178,7 @@ window.loadAdminBookings = async function() {
     `;
     tbody.appendChild(tr);
   });
-};
+}
 
 function updateStatusCounters(list) {
   const pendingEl = document.getElementById('countPending');
@@ -206,12 +195,12 @@ function updateStatusCounters(list) {
   if (waitEl) waitEl.textContent = list.filter(i => i.status === 'waiting').length;
 }
 
-window.updateBookingStatus = async function(bookingId, status) {
+async function updateBookingStatus(bookingId, status) {
   await _supabase.from('bookings').update({ status }).eq('id', bookingId);
   loadAdminBookings();
-};
+}
 
-window.markAsMissed = async function(bookingId, teacherName) {
+async function markAsMissed(bookingId, teacherName) {
   if (!confirm(`確定要將 ${teacherName} 的此筆記錄標記為「欠取機」嗎？\n系統將自動為該老師累加 1 次欠取次數！`)) return;
 
   await _supabase.from('bookings').update({ status: 'missed' }).eq('id', bookingId);
@@ -227,16 +216,16 @@ window.markAsMissed = async function(bookingId, teacherName) {
 
   loadAdminBookings();
   loadAdminTeachers();
-};
+}
 
-window.deleteBookingAdmin = async function(id) {
+async function deleteBookingAdmin(id) {
   if (!confirm('管理員確定要強制刪除此借用記錄嗎？')) return;
   await _supabase.from('bookings').delete().eq('id', id);
   loadAdminBookings();
-};
+}
 
 // ================= 4. 教師欠取與黑名單管理 =================
-window.loadAdminTeachers = async function() {
+async function loadAdminTeachers() {
   const { data } = await _supabase.from('teachers').select('*');
   const tbody = document.getElementById('adminTeachersTable');
   if (!tbody) return;
@@ -272,25 +261,25 @@ window.loadAdminTeachers = async function() {
     `;
     tbody.appendChild(tr);
   });
-};
+}
 
-window.toggleTeacherSuspend = async function(teacherName, isSuspended, untilDate = null) {
+async function toggleTeacherSuspend(teacherName, isSuspended, untilDate = null) {
   await _supabase.from('teachers').update({ is_suspended: isSuspended, suspended_until: untilDate }).eq('name', teacherName);
   loadAdminTeachers();
-};
+}
 
-window.promptSuspend = function(teacherName) {
+function promptSuspend(teacherName) {
   const untilDate = prompt(`請輸入 ${teacherName} 的停借截止日期 (格式: YYYY-MM-DD)：`, '');
   toggleTeacherSuspend(teacherName, true, untilDate || null);
-};
+}
 
-window.resetMissedCount = async function(teacherName) {
+async function resetMissedCount(teacherName) {
   if (!confirm(`確定要將 ${teacherName} 的欠取次數重設為 0 次嗎？`)) return;
   await _supabase.from('teachers').update({ missed_count: 0 }).eq('name', teacherName);
   loadAdminTeachers();
-};
+}
 
-window.addNewTeacher = async function(event) {
+async function addNewTeacher(event) {
   event.preventDefault();
   const name = document.getElementById('newTeacherName').value.trim();
   if (!name) return;
@@ -302,10 +291,10 @@ window.addNewTeacher = async function(event) {
     document.getElementById('newTeacherName').value = '';
     loadAdminTeachers();
   }
-};
+}
 
 // ================= 5. 全校基準物資總數設定 =================
-window.loadAdminResources = async function() {
+async function loadAdminResources() {
   try {
     const { data, error } = await _supabase.from('resources').select('name, total_qty');
     if (!error && data) {
@@ -323,9 +312,9 @@ window.loadAdminResources = async function() {
   } catch (err) {
     console.error("載入資源基準總數失敗:", err);
   }
-};
+}
 
-window.updateResourcesStock = async function(event) {
+async function updateResourcesStock(event) {
   event.preventDefault();
   
   const submitBtn = event.target.querySelector('button[type="submit"]');
@@ -366,10 +355,10 @@ window.updateResourcesStock = async function(event) {
     submitBtn.disabled = false;
     submitBtn.innerHTML = originalText;
   }
-};
+}
 
 // ================= 6. 每日特定日期數量調節邏輯 =================
-window.loadDailyAdjustments = async function() {
+async function loadDailyAdjustments() {
   const { data, error } = await _supabase
     .from('daily_adjustments')
     .select('*')
@@ -380,7 +369,7 @@ window.loadDailyAdjustments = async function() {
   tbody.innerHTML = '';
 
   if (error || !data || data.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="5" class="py-4 text-center text-slate-400">目前暫無任何特別日期調整</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" class="py-4 text-center text-slate-400 font-bold">目前暫無任何特別日期調整</td></tr>`;
     return;
   }
 
@@ -400,9 +389,9 @@ window.loadDailyAdjustments = async function() {
     `;
     tbody.appendChild(tr);
   });
-};
+}
 
-window.saveDailyAdjustment = async function(event) {
+async function saveDailyAdjustment(event) {
   event.preventDefault();
   const date = document.getElementById('adjustDate').value;
   const device_type = document.getElementById('adjustDevice').value;
@@ -423,10 +412,29 @@ window.saveDailyAdjustment = async function(event) {
     document.getElementById('adjustReason').value = '';
     loadDailyAdjustments();
   }
-};
+}
 
-window.deleteDailyAdjustment = async function(id) {
+async function deleteDailyAdjustment(id) {
   if (!confirm('確定要還原此特定日期的庫存設定，使其恢復為全校預設基準總量嗎？')) return;
   await _supabase.from('daily_adjustments').delete().eq('id', id);
   loadDailyAdjustments();
-};
+}
+
+// ================= 7. 💡 統一將函數掛載給 Window，供 HTML 內 onclick 按鈕呼叫 =================
+window.loginWithGoogle = loginWithGoogle;
+window.logout = logout;
+window.switchTab = switchTab;
+window.loadAdminBookings = loadAdminBookings;
+window.updateBookingStatus = updateBookingStatus;
+window.markAsMissed = markAsMissed;
+window.deleteBookingAdmin = deleteBookingAdmin;
+window.loadAdminTeachers = loadAdminTeachers;
+window.toggleTeacherSuspend = toggleTeacherSuspend;
+window.promptSuspend = promptSuspend;
+window.resetMissedCount = resetMissedCount;
+window.addNewTeacher = addNewTeacher;
+window.loadAdminResources = loadAdminResources;
+window.updateResourcesStock = updateResourcesStock;
+window.loadDailyAdjustments = loadDailyAdjustments;
+window.saveDailyAdjustment = saveDailyAdjustment;
+window.deleteDailyAdjustment = deleteDailyAdjustment;

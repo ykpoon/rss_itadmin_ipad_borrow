@@ -79,9 +79,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-   // ================= 執行資料載入與認證 (已修正：1.5秒安全延遲開場動畫) =================
+  // 執行資料載入與認證
   try {
-    // 1. 先在背景默默把所有 Supabase 資料載入完成
     await checkAuth();
     await loadResources(); 
     await loadTeachers();  
@@ -92,21 +91,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.error("背景初始化載入失敗:", err);
   }
 
-  // 2. 💡 獨立出來的動畫控制：保證無論資料載入成功還是失敗，都一定會在 1.5 秒 (1500ms) 後淡出遮罩
+  // 1.5 秒安全動畫控制
   setTimeout(() => {
     const loader = document.getElementById('app-loader');
     if (loader) {
-      // 加上平移與淡出樣式
       loader.classList.add('opacity-0', '-translate-y-full');
-      // 在動畫完成後 (0.7秒)，徹底隱藏
       setTimeout(() => {
         loader.classList.add('hidden');
       }, 700);
     }
-  }, 700); // 👈 這裡設為 900 毫秒 (0.9秒)，保證順暢運作且不會卡死！
+  }, 1500);
 });
-
-
 
 function getTodayString() {
   const today = new Date();
@@ -186,7 +181,6 @@ async function updateAuthUI(user) {
   }
 }
 
-// 綁定給全域按鈕使用的認證函數
 window.loginWithGoogle = async function() {
   try {
     const { error } = await _supabase.auth.signInWithOAuth({
@@ -566,8 +560,6 @@ function renderCalendar() {
   }
 }
 
-
-// ================= index.js 中的 renderDashboard 函數（已修正：拒絕折行、呼吸感極致排版） =================
 function renderDashboard() {
   const grid = document.getElementById('lessonsGrid');
   if (!grid) return;
@@ -625,9 +617,8 @@ function renderDashboard() {
         <span class="w-1.5 h-1.5 rounded-full bg-teal-500"></span>
       </div>
       
-      <!-- 設備數量：使用 flex-col 搭配完美的內邊距與間距，保證任何尺寸下都極其寬敞舒服 -->
+      <!-- 設備數量 -->
       <div class="space-y-2 text-xs">
-        
         <!-- iPad 數量列 -->
         <div class="flex items-center justify-between px-3 py-2 rounded-xl border ${ipadColor} whitespace-nowrap">
           <span class="font-bold text-slate-500 text-[11px] tracking-wide">iPad</span>
@@ -647,16 +638,13 @@ function renderDashboard() {
             <span class="text-[11px] text-slate-400 font-semibold">${mobileTotal}</span>
           </div>
         </div>
-        
       </div>
     `;
     grid.appendChild(card);
   }
 }
 
-
-
-// ================= index.js 中的 renderTable 函數 (已修正：候補標籤強制換行) =================
+// ================= index.js 中的 renderTable 函數 (已修正：候補與候補成功標籤均換行) =================
 function renderTable() {
   const tbody = document.getElementById('bookingsTableBody');
   const emptyMsg = document.getElementById('emptyMessage');
@@ -691,13 +679,6 @@ function renderTable() {
   const waitingCounters = {};
 
   finalSortedList.forEach(item => {
-    const isOwner = currentUser && (item.user_email && currentUser.email === item.user_email);
-    const canDelete = isCurrentUserAdmin || isOwner;
-    const isWaiting = (item.remarks && item.remarks.includes('[候補]')) || item.status === 'waiting';
-
-    // 💡 已修正：將候補標籤加上 block mt-1，使其百分之百強制在下一行顯示，不再發生字體拆開折行
-    let waitingBadgeHTML = '';
-      finalSortedList.forEach(item => {
     const isOwner = currentUser && (item.user_email && currentUser.email === item.user_email);
     const canDelete = isCurrentUserAdmin || isOwner;
     const isWaiting = (item.remarks && item.remarks.includes('[候補]')) || item.status === 'waiting';
@@ -745,38 +726,6 @@ function renderTable() {
       <td class="py-2.5 px-3 font-medium">${item.class} (${item.subject})</td>
       <td class="py-2.5 px-3 font-medium">${item.room}</td>
       <td class="py-2.5 px-3 text-center">
-        ... (下方操作按鈕代碼保持原樣) ...
-
-
-    if (isWaiting) {
-      const key = `${item.lesson}_${item.device_type}`;
-      waitingCounters[key] = (waitingCounters[key] || 0) + 1;
-      const waitOrder = waitingCounters[key];
-
-      waitingBadgeHTML = `
-        <span class="block mt-1.5 w-fit px-2 py-0.5 bg-amber-500 text-white text-[10px] rounded-md font-black border border-amber-600 animate-pulse tracking-wider">
-          候補 ${waitOrder}
-        </span>
-      `;
-    }
-
-    const tr = document.createElement('tr');
-    tr.className = isWaiting ? "bg-amber-50/40 hover:bg-amber-50/70 transition" : "hover:bg-slate-50/80 transition";
-    tr.innerHTML = `
-      <td class="py-2.5 px-3 font-semibold text-slate-850">
-        ${LESSON_NAMES[item.lesson]}
-        ${isWaiting ? '<span class="block text-[10px] text-amber-600 font-bold">(候補隊列)</span>' : ''}
-      </td>
-      <td class="py-2.5 px-3 font-bold text-teal-700">${item.teacher_name}</td>
-      <td class="py-2.5 px-3 text-slate-800 font-bold">
-        <span class="${item.device_type === 'iPad' ? 'text-teal-600' : 'text-purple-600'}">
-          ${item.device_type} × ${item.quantity}
-        </span>
-        ${waitingBadgeHTML}
-      </td>
-      <td class="py-2.5 px-3 font-medium">${item.class} (${item.subject})</td>
-      <td class="py-2.5 px-3 font-medium">${item.room}</td>
-      <td class="py-2.5 px-3 text-center">
         <div class="flex items-center justify-center space-x-2">
           ${canDelete ? `
             <button onclick="editQuantity('${item.id}', '${item.device_type}', ${item.lesson}, ${item.quantity}, '${item.teacher_name}')" class="text-teal-600 hover:text-teal-700 p-1.5 transition rounded-lg hover:bg-teal-50" title="修改借用數量">
@@ -797,7 +746,6 @@ function renderTable() {
   });
 }
 
-
 // ================= 💡 新增：處理修改數量的函數 =================
 window.editQuantity = async function(bookingId, deviceType, lesson, currentQty, teacherName) {
   if (!currentUser) {
@@ -805,10 +753,8 @@ window.editQuantity = async function(bookingId, deviceType, lesson, currentQty, 
     return;
   }
 
-  // 1. 彈出輸入框讓老師輸入新數量
   const input = prompt(`【修改借用數量】\n\n您目前為 ${teacherName} 登記了 ${deviceType} x ${currentQty} 部。\n請輸入您想修改後的新數量：`, currentQty);
-  
-  if (input === null) return; // 使用者按取消
+  if (input === null) return;
 
   const newQty = parseInt(input.trim());
   if (isNaN(newQty) || newQty <= 0) {
@@ -816,18 +762,16 @@ window.editQuantity = async function(bookingId, deviceType, lesson, currentQty, 
     return;
   }
 
-  if (newQty === currentQty) return; // 數量沒有變動
+  if (newQty === currentQty) return;
 
-  // 2. 💡 核對剩餘庫存（必須扣除該筆登記自己原本佔用的庫存）
   const remaining = getRemainingStock(lesson, deviceType);
-  const totalAvailable = remaining + currentQty; // 當前可用量 + 原本佔用量 = 理論上最大可調整上限
+  const totalAvailable = remaining + currentQty;
 
   if (newQty > totalAvailable) {
-    alert(`❌ 修改失敗：\n該節的 ${deviceType} 剩餘庫存不足！\n\n理論上您最大僅可調整至 ${totalAvailable} 部。\n如果您需要更多設備，請保持原樣或另行排隊候補。`);
+    alert(`❌ 修改失敗：\n該節的 ${deviceType} 剩餘庫存不足！\n\n理論上您最大僅可調整至 ${totalAvailable} 部。`);
     return;
   }
 
-  // 3. 執行資料庫更新
   if (_supabase) {
     const { error } = await _supabase
       .from('bookings')
@@ -838,11 +782,10 @@ window.editQuantity = async function(bookingId, deviceType, lesson, currentQty, 
       alert('❌ 修改數量失敗：' + error.message);
     } else {
       alert(`✅ 數量修改成功！已為 ${teacherName} 將 ${deviceType} 的借用數量調整為 ${newQty} 部。\n\n您的隊列位置已成功保持！`);
-      fetchAndRender(); // 即時重新載入並渲染
+      fetchAndRender();
     }
   }
 };
-
 
 // ================= 8. 提交借用表單 =================
 window.handleFormSubmit = async function(event) {
@@ -907,7 +850,6 @@ window.handleFormSubmit = async function(event) {
 
   if (quantity > remaining) {
     const confirmWait = confirm(`⚠️ 該節 ${device_type} 剩餘庫存為 ${remaining} 部（不足 ${quantity} 部）。\n\n您是否要將此預約排入【候補名單 (Waiting List)】？\n若當天有同事未前來取機，將依候補順序為您安排。`);
-    
     if (confirmWait) {
       isWaiting = true;
     } else {
@@ -921,7 +863,6 @@ window.handleFormSubmit = async function(event) {
 
   if (_supabase) {
     const bookingStatus = isWaiting ? 'waiting' : 'pending';
-    
     const { error } = await _supabase.from('bookings').insert([{
       date, 
       lesson, 
@@ -955,8 +896,7 @@ window.handleFormSubmit = async function(event) {
   }
 };
 
-// ================= index.js 中的 deleteBooking 函數 (已修正：精確限制在當天當節自動遞補) =================
-// ================= index.js 中的 deleteBooking 函數 (已修正：當天限定遞補 + 智能自動拆單 + 寫入候補成功識別標記) =================
+// ================= index.js 中的 deleteBooking 函數 =================
 window.deleteBooking = async function(id, teacherName) {
   if (!currentUser) {
     alert('請先登入！');
@@ -964,14 +904,12 @@ window.deleteBooking = async function(id, teacherName) {
   }
 
   if (!confirm(`確定要取消 ${teacherName} 的此筆借用記錄嗎？\n釋出的庫存將優先自動分派給當天同課節候補的同事。`)) return;
-
   if (!_supabase) return;
 
   try {
-    // 1. 先取得即將被刪除的預約資訊（為了知道日期、課節、設備種類與數量）
     const { data: targetBooking, error: fetchErr } = await _supabase
       .from('bookings')
-      .select('date, lesson, device_type, quantity, status') // 💡 已新增：讀取 date
+      .select('date, lesson, device_type, quantity, status')
       .eq('id', id)
       .single();
 
@@ -980,42 +918,36 @@ window.deleteBooking = async function(id, teacherName) {
       return;
     }
 
-    // 2. 執行刪除
     const { error: deleteErr } = await _supabase.from('bookings').delete().eq('id', id);
     if (deleteErr) {
       alert('刪除失敗：' + deleteErr.message);
       return;
     }
 
-    // 3. 核心：如果被刪除的原本不是候補（即釋放了真實庫存），則啟動「自動遞補與拆單」邏輯
     if (targetBooking.status !== 'waiting') {
-      let releasedQty = targetBooking.quantity; // 釋放出的總可用數量
-      const bookingDate = targetBooking.date;    // 💡 預約日期
-      const lesson = targetBooking.lesson;        // 課節
-      const deviceType = targetBooking.device_type; // 設備種類
+      let releasedQty = targetBooking.quantity;
+      const bookingDate = targetBooking.date;
+      const lesson = targetBooking.lesson;
+      const deviceType = targetBooking.device_type;
 
-      // 4. 💡 修正：必須精確限制在 [同日期 eq('date', bookingDate)]、同課節、同設備、候補中 的預約
       const { data: waitingList, error: waitErr } = await _supabase
         .from('bookings')
         .select('*')
-        .eq('date', bookingDate) // 👈 關鍵修正：精確鎖定在取消預約的當天
+        .eq('date', bookingDate)
         .eq('lesson', lesson)
         .eq('device_type', deviceType)
         .eq('status', 'waiting')
-        .order('created_at', { ascending: true }); // 按排隊先後順序
+        .order('created_at', { ascending: true });
 
       if (!waitErr && waitingList && waitingList.length > 0) {
         let updatePromises = [];
         let notifyMessages = [];
 
         for (let waiter of waitingList) {
-          if (releasedQty <= 0) break; // 釋放庫存已分派光，停止
+          if (releasedQty <= 0) break;
 
           if (waiter.quantity <= releasedQty) {
-            // 💡 情況 A：庫存足夠 waiter 的全額需求 -> 直接全額補上 (扶正)
             releasedQty -= waiter.quantity;
-            
-            // 💡 優化：在備註（remarks）前加上 [候補成功] 的識別標記，同時移除舊的 [候補]
             const cleanedRemarks = (waiter.remarks || '').replace('[候補]', '').trim();
             const promotedRemarks = `[候補成功] ${cleanedRemarks}`.trim();
 
@@ -1027,12 +959,10 @@ window.deleteBooking = async function(id, teacherName) {
             notifyMessages.push(`🎉 當天候補第 1 順位 ${waiter.teacher_name} 老師（${waiter.quantity} 部 ${deviceType}）已全額成功補上！`);
 
           } else {
-            // 💡 情況 B：庫存不足 -> 智能拆單
-            const partQty = releasedQty; // 拿走剩下所有的可用數量
-            const remainQty = waiter.quantity - partQty; // 剩餘繼續排隊的數量
-            releasedQty = 0; // 庫存分派完畢
+            const partQty = releasedQty;
+            const remainQty = waiter.quantity - partQty;
+            releasedQty = 0;
 
-            // 1. 修改原本的候補單：數量改為 partQty 部，轉為正式預約 (pending)，備註加上 [候補成功]
             const cleanedRemarks = (waiter.remarks || '').replace('[候補]', '').trim();
             const promotedRemarks = `[候補成功] ${cleanedRemarks}`.trim();
 
@@ -1042,7 +972,6 @@ window.deleteBooking = async function(id, teacherName) {
                 .eq('id', waiter.id)
             );
 
-            // 2. 自動在資料庫中「新增一筆新候補預約」：數量為 remainQty，繼續排隊並保持原建立時間（保持 [候補] 狀態）
             updatePromises.push(
               _supabase.from('bookings').insert([{
                 date: waiter.date,
@@ -1056,14 +985,13 @@ window.deleteBooking = async function(id, teacherName) {
                 remarks: `[候補] ${waiter.remarks || ''}`.replace('[候補] [候補]', '[候補]').trim(),
                 status: 'waiting',
                 user_email: waiter.user_email,
-                created_at: waiter.created_at // 保持一致的建立時間，確保候補優先順序不變
+                created_at: waiter.created_at
               }])
             );
             notifyMessages.push(`⚖️ 因庫存限制，已為當天 ${waiter.teacher_name} 老師拆單：\n- 成功補上 ${partQty} 部\n- 剩餘 ${remainQty} 部繼續在候補名單中排隊！`);
           }
         }
 
-        // 執行所有遞補更新
         if (updatePromises.length > 0) {
           await Promise.all(updatePromises);
           alert(`✅ 取消預約成功！釋出庫存已自動分派完成：\n\n` + notifyMessages.join('\n\n'));
@@ -1071,7 +999,6 @@ window.deleteBooking = async function(id, teacherName) {
       }
     }
 
-    // 重新載入與渲染數據
     fetchAndRender();
 
   } catch (err) {
@@ -1079,5 +1006,3 @@ window.deleteBooking = async function(id, teacherName) {
     alert('取消失敗，請稍後再試。');
   }
 };
-
-

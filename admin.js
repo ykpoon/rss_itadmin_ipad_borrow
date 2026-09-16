@@ -36,7 +36,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         loader.classList.add('hidden');
       }, 700);
     }
-  }, 1500);
+  }, 900);
 });
 
 function getTodayString() {

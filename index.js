@@ -103,7 +103,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         loader.classList.add('hidden');
       }, 700);
     }
-  }, 900); // 👈 這裡設為 900 毫秒 (0.9秒)，保證順暢運作且不會卡死！
+  }, 700); // 👈 這裡設為 900 毫秒 (0.9秒)，保證順暢運作且不會卡死！
 });
 
 

@@ -149,17 +149,20 @@
       <div class="tech-card rounded-2xl overflow-hidden p-4">
         <div class="overflow-x-auto">
           <table class="w-full text-left text-sm text-slate-600">
-            <thead class="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
-              <tr>
-                <th class="py-3 px-4">課節</th>
-                <th class="py-3 px-4">借用老師</th>
-                <th class="py-3 px-4">設備 / 數量</th>
-                <th class="py-3 px-4">班別 / 科目 / 地點</th>
-                <th class="py-3 px-4">登記者電郵</th>
-                <th class="py-3 px-4">目前狀態</th>
-                <th class="py-3 px-4 text-center">狀態審核操作</th>
-              </tr>
-            </thead>
+            <!-- 💡 已修正：補上「備註資訊」標頭，使表格的 8 個欄位完美對齊，不再發生左右錯位 -->
+<thead class="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
+  <tr>
+    <th class="py-3 px-4">課節</th>
+    <th class="py-3 px-4">借用老師</th>
+    <th class="py-3 px-4">設備 / 數量</th>
+    <th class="py-3 px-4">班別 / 科目 / 地點</th>
+    <th class="py-3 px-4">登記者電郵</th>
+    <th class="py-3 px-4">備註資訊</th> <!-- 👈 補上這行 -->
+    <th class="py-3 px-4">目前狀態</th>
+    <th class="py-3 px-4 text-center">狀態審核操作</th>
+  </tr>
+</thead>
+
             <tbody id="adminBookingsTable" class="divide-y divide-slate-100">
               <!-- 動態生成 -->
             </tbody>

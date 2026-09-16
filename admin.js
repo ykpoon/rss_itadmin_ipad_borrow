@@ -7,7 +7,17 @@ const LESSON_NAMES = window.LESSON_NAMES;
 
 let currentAdminUser = null;
 
-// ================= 1. 初始化與生命週期 =================
+
+// admin.js
+// IT 管理員後台 - 設備借用與黑名單管理邏輯控制
+
+// 💡 從 window 物件中取得共用的 Supabase Client 與課節對照表
+const _supabase = window._supabase;
+const LESSON_NAMES = window.LESSON_NAMES;
+
+let currentAdminUser = null;
+
+// ================= 1. 初始化與生命週期 (已修正：1.5秒安全延遲動畫) =================
 document.addEventListener('DOMContentLoaded', async () => {
   const dateInput = document.getElementById('adminQueryDate');
   if (dateInput) {
@@ -15,13 +25,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     dateInput.addEventListener('change', loadAdminBookings);
   }
 
-  // 初次檢查登入
-  await verifyAdminAuth();
-
-  // 🌟 即時監聽 Google OAuth 跳轉完成
-  _supabase.auth.onAuthStateChange(async (event, session) => {
+  // 1. 在背景默默執行管理員認證身分
+  try {
     await verifyAdminAuth();
-  });
+
+    // 🌟 即時監聽 Google OAuth 跳轉完成
+    _supabase.auth.onAuthStateChange(async (event, session) => {
+      await verifyAdminAuth();
+    });
+  } catch (err) {
+    console.error("後台認證初始化失敗:", err);
+  }
+
+  // 2. 💡 獨立控制動畫：保證在剛好 1.5 秒 (1500ms) 後，優雅平移且淡出遮罩，絕對不卡死！
+  setTimeout(() => {
+    const loader = document.getElementById('app-loader');
+    if (loader) {
+      // 加上平移與淡出樣式 (0.7秒 transition)
+      loader.classList.add('opacity-0', '-translate-y-full');
+      setTimeout(() => {
+        loader.classList.add('hidden');
+      }, 700);
+    }
+  }, 1500);
 });
 
 function getTodayString() {

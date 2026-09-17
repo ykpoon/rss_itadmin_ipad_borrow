@@ -224,8 +224,26 @@ async function updateBookingStatus(bookingId, status) {
   loadAdminBookings();
 }
 
+// 💡 🟢 新增：精算 2 個工作天的輔助函數（自動跳過星期六、星期日）
+function getSuspendedUntilDate(startDate = new Date()) {
+  let d = new Date(startDate);
+  let workingDaysCount = 0;
+  while (workingDaysCount < 2) {
+    d.setDate(d.getDate() + 1);
+    let day = d.getDay(); // 0 是星期日，6 是星期六
+    if (day !== 0 && day !== 6) {
+      workingDaysCount++; // 只有星期一至五才計入工作天
+    }
+  }
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dVal = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dVal}`;
+}
+
+// 💡 🟢 修改後：標記欠取並精算 2 個工作天禁借期
 async function markAsMissed(bookingId, teacherName) {
-  if (!confirm(`確定要將 ${teacherName} 的此筆記錄標記為「欠取機」嗎？\n系統將自動為該老師累加 1次欠取次數！`)) return;
+  if (!confirm(`確定要將 ${teacherName} 的此筆記錄標記為「欠取機」嗎？\n系統將自動為該老師累加 1 次欠取次數！`)) return;
 
   await _supabase.from('bookings').update({ status: 'missed' }).eq('id', bookingId);
 
@@ -234,13 +252,30 @@ async function markAsMissed(bookingId, teacherName) {
   if (teacher) {
     const newCount = (teacher.missed_count || 0) + 1;
     const autoSuspend = newCount >= 2;
-    await _supabase.from('teachers').update({ missed_count: newCount, is_suspended: autoSuspend ? true : undefined }).eq('name', teacherName);
-    alert(`已標記為欠取！${teacherName} 老師累計欠取次數更新為 ${newCount} 次。` + (autoSuspend ? '\n⚠️ 該老師欠取滿 2 次，已自動加入停借名單！' : ''));
+    let suspendedUntilDate = null;
+    
+    if (autoSuspend) {
+      // 💡 自動調用上面的函數，計算 2 個工作天後的日期
+      suspendedUntilDate = getSuspendedUntilDate(new Date());
+    }
+
+    // 💡 同步將計算好的截止日期 suspended_until 儲存到資料庫
+    await _supabase
+      .from('teachers')
+      .update({ 
+        missed_count: newCount, 
+        is_suspended: autoSuspend, 
+        suspended_until: suspendedUntilDate 
+      })
+      .eq('name', teacherName);
+
+    alert(`已標記為欠取！${teacherName} 老師累計欠取次數更新為 ${newCount} 次。` + (autoSuspend ? `\n⚠️ 該老師欠取滿 2 次，已自動加入停借名單（禁用兩個工作天至 ${suspendedUntilDate}）！` : ''));
   }
 
   loadAdminBookings();
   loadAdminTeachers();
 }
+
 
 // ================= 💡 已重構：後台強制刪除也全面支援「當天當節自動遞補、智能拆單與 [候補成功] 寫入」功能 =================
 async function deleteBookingAdmin(id) {

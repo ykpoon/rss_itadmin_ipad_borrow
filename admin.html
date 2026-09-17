@@ -183,15 +183,22 @@
           <h3 class="text-base font-bold text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-3">
             <i class="fa-solid fa-user-plus text-teal-600"></i> 新增教師名單
           </h3>
-          <form onsubmit="addNewTeacher(event)" class="space-y-4">
-            <div>
-              <label class="block text-xs font-bold text-slate-500 mb-1.5">教師姓名 <span class="text-rose-500">*</span></label>
-              <input type="text" id="newTeacherName" required placeholder="如：張老師" class="w-full px-3 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:ring-1 focus:ring-teal-500 focus:outline-none transition">
-            </div>
-            <button type="submit" class="w-full bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold py-3 rounded-xl transition">
-              確認新增至名單
-            </button>
-          </form>
+       <!-- admin.html 新增教師表單美化與 Email 欄位新增 -->
+<form onsubmit="addNewTeacher(event)" class="space-y-4">
+  <div>
+    <label class="block text-xs font-bold text-slate-500 mb-1.5">教師姓名 <span class="text-rose-500">*</span></label>
+    <input type="text" id="newTeacherName" required placeholder="如：張老師" class="w-full px-3 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:ring-1 focus:ring-teal-500 focus:outline-none transition">
+  </div>
+  <!-- 💡 新增：管理員可以直接在此輸入教師的登入 Google 電郵 -->
+  <div>
+    <label class="block text-xs font-bold text-slate-500 mb-1.5">登入電郵 (如學校 Google Email) <span class="text-rose-500">*</span></label>
+    <input type="email" id="newTeacherEmail" required placeholder="如：teacher@school.edu.hk" class="w-full px-3 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:ring-1 focus:ring-teal-500 focus:outline-none transition">
+  </div>
+  <button type="submit" class="w-full bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold py-3 rounded-xl transition">
+    確認新增至名單
+  </button>
+</form>
+
         </div>
 
         <!-- 右側：欠取統計與黑名單清單 -->

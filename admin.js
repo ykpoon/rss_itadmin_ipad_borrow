@@ -249,6 +249,7 @@ async function deleteBookingAdmin(id) {
 }
 
 // ================= 4. 教師欠取與黑名單管理 =================
+// ================= admin.js 中的 loadAdminTeachers 函數 (已優化：預覽教師電郵) =================
 async function loadAdminTeachers() {
   const { data } = await _supabase.from('teachers').select('*');
   const tbody = document.getElementById('adminTeachersTable');
@@ -266,21 +267,25 @@ async function loadAdminTeachers() {
     const tr = document.createElement('tr');
     tr.className = t.is_suspended ? "bg-rose-50/40" : "hover:bg-slate-50";
     tr.innerHTML = `
-      <td class="py-2.5 px-3 font-semibold text-slate-800">${t.name}</td>
+      <td class="py-2.5 px-3">
+        <span class="font-semibold text-slate-800">${t.name}</span>
+        <!-- 💡 新增：在後台名字下方預覽電郵 -->
+        <span class="block text-[10px] text-slate-400 font-mono mt-0.5">${t.email || '未設定電郵'}</span>
+      </td>
       <td class="py-2.5 px-3 font-bold ${t.missed_count > 0 ? 'text-rose-600' : 'text-slate-500'}">${t.missed_count || 0} 次</td>
       <td class="py-2.5 px-3">${t.is_suspended ? '<span class="px-2 py-0.5 bg-rose-100 text-rose-700 rounded font-bold">⛔ 暫停借用中</span>' : '<span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded font-medium">正常</span>'}</td>
       <td class="py-2.5 px-3 font-mono text-[11px]">${t.suspended_until || '--'}</td>
       <td class="py-2.5 px-3 text-center space-x-1">
         ${t.is_suspended ? `
-          <button onclick="toggleTeacherSuspend('${t.name}', false)" class="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-medium transition">
+          <button onclick="toggleTeacherSuspend('${t.name}', false)" class="px-2 py-1 bg-teal-600 hover:bg-teal-500 text-white rounded font-medium transition text-xs">
             <i class="fa-solid fa-lock-open mr-1"></i> 解除停借
           </button>
         ` : `
-          <button onclick="promptSuspend('${t.name}')" class="px-2 py-1 bg-rose-100 hover:bg-rose-200 text-rose-700 border border-rose-300 rounded font-medium transition">
+          <button onclick="promptSuspend('${t.name}')" class="px-2 py-1 bg-rose-100 hover:bg-rose-200 text-rose-700 border border-rose-300 rounded font-medium transition text-xs">
             <i class="fa-solid fa-ban mr-1"></i> 設為停借
           </button>
         `}
-        <button onclick="resetMissedCount('${t.name}')" class="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded transition">清零</button>
+        <button onclick="resetMissedCount('${t.name}')" class="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded transition text-xs">清零</button>
       </td>
     `;
     tbody.appendChild(tr);
@@ -303,16 +308,19 @@ async function resetMissedCount(teacherName) {
   loadAdminTeachers();
 }
 
+// ================= admin.js 中的 addNewTeacher 函數 (已優化：同時儲存教師電郵) =================
 async function addNewTeacher(event) {
   event.preventDefault();
   const name = document.getElementById('newTeacherName').value.trim();
-  if (!name) return;
+  const email = document.getElementById('newTeacherEmail').value.trim(); // 💡 讀取電郵
+  if (!name || !email) return;
 
-  const { error } = await _supabase.from('teachers').insert([{ name, missed_count: 0, is_suspended: false }]);
+  const { error } = await _supabase.from('teachers').insert([{ name, email, missed_count: 0, is_suspended: false }]);
   if (error) alert('新增失敗：' + error.message);
   else {
-    alert(`已成功新增 ${name} 老師！`);
+    alert(`✅ 已成功新增 ${name} 老師 (${email})！`);
     document.getElementById('newTeacherName').value = '';
+    document.getElementById('newTeacherEmail').value = '';
     loadAdminTeachers();
   }
 }

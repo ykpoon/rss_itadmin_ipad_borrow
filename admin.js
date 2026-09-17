@@ -241,52 +241,185 @@ function getSuspendedUntilDate(startDate = new Date()) {
   return `${y}-${m}-${dVal}`;
 }
 
-// 💡 🟢 修改後：標記欠取並精算 2 個工作天禁借期
-async function markAsMissed(bookingId, teacherName) {
-  if (!confirm(`確定要將 ${teacherName} 的此筆記錄標記為「欠取機」嗎？\n系統將自動為該老師累加 1 次欠取次數！`)) return;
-
-  await _supabase.from('bookings').update({ status: 'missed' }).eq('id', bookingId);
-
-  const { data: teacher } = await _supabase.from('teachers').select('missed_count').eq('name', teacherName).single();
-
-  if (teacher) {
-    const newCount = (teacher.missed_count || 0) + 1;
-    const autoSuspend = newCount >= 2;
-    let suspendedUntilDate = null;
-    
-    if (autoSuspend) {
-      // 💡 自動調用上面的函數，計算 2 個工作天後的日期
-      suspendedUntilDate = getSuspendedUntilDate(new Date());
+// ================= 💡 新增：計算 2 個工作天後的日期作為停借截止日期 (自動跳過星期六、星期日) =================
+function getSuspendedUntilDate(startDate = new Date()) {
+  let d = new Date(startDate);
+  let workingDaysCount = 0;
+  while (workingDaysCount < 2) {
+    d.setDate(d.getDate() + 1);
+    let day = d.getDay(); // 0 是星期日，6 是星期六
+    if (day !== 0 && day !== 6) {
+      workingDaysCount++; // 只有星期一至星期五才計入停借工作天
     }
-
-    // 💡 同步將計算好的截止日期 suspended_until 儲存到資料庫
-    await _supabase
-      .from('teachers')
-      .update({ 
-        missed_count: newCount, 
-        is_suspended: autoSuspend, 
-        suspended_until: suspendedUntilDate 
-      })
-      .eq('name', teacherName);
-
-    alert(`已標記為欠取！${teacherName} 老師累計欠取次數更新為 ${newCount} 次。` + (autoSuspend ? `\n⚠️ 該老師欠取滿 2 次，已自動加入停借名單（禁用兩個工作天至 ${suspendedUntilDate}）！` : ''));
   }
-
-  loadAdminBookings();
-  loadAdminTeachers();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dVal = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dVal}`;
 }
 
+// ================= 💡 新增：統一的「刪除預約並自動遞補/分流拆單」核心邏輯 =================
+async function deleteBookingWithPromotion(booking) {
+  // 1. 執行刪除
+  const { error: deleteErr } = await _supabase.from('bookings').delete().eq('id', booking.id);
+  if (deleteErr) throw deleteErr;
 
-// ================= 💡 已重構：後台強制刪除也全面支援「當天當節自動遞補、智能拆單與 [候補成功] 寫入」功能 =================
+  // 2. 如果被刪除的原本不是候補（即釋放了真實庫存），則啟動「自動遞補與拆單」邏輯
+  if (booking.status !== 'waiting') {
+    let releasedQty = booking.quantity;
+    const bookingDate = booking.date;
+    const lesson = booking.lesson;
+    const deviceType = booking.device_type;
+
+    // 搜尋當天該節該設備的候補名單 (按排隊先後順序優先)
+    const { data: waitingList, error: waitErr } = await _supabase
+      .from('bookings')
+      .select('*')
+      .eq('date', bookingDate)
+      .eq('lesson', lesson)
+      .eq('device_type', deviceType)
+      .eq('status', 'waiting')
+      .order('created_at', { ascending: true });
+
+    if (!waitErr && waitingList && waitingList.length > 0) {
+      let updatePromises = [];
+
+      for (let waiter of waitingList) {
+        if (releasedQty <= 0) break;
+
+        if (waiter.quantity <= releasedQty) {
+          // 情況 A：庫存充足 -> 直接全額補上 (扶正)
+          releasedQty -= waiter.quantity;
+          const cleanedRemarks = (waiter.remarks || '').replace('[候補]', '').trim();
+          const promotedRemarks = `[候補成功] ${cleanedRemarks}`.trim();
+
+          updatePromises.push(
+            _supabase.from('bookings')
+              .update({ status: 'pending', remarks: promotedRemarks })
+              .eq('id', waiter.id)
+          );
+        } else {
+          // 情況 B：庫存不足 -> 智能拆單
+          const partQty = releasedQty;
+          const remainQty = waiter.quantity - partQty;
+          releasedQty = 0;
+
+          const cleanedRemarks = (waiter.remarks || '').replace('[候補]', '').trim();
+          const promotedRemarks = `[候補成功] ${cleanedRemarks}`.trim();
+
+          updatePromises.push(
+            _supabase.from('bookings')
+              .update({ quantity: partQty, status: 'pending', remarks: promotedRemarks })
+              .eq('id', waiter.id)
+          );
+
+          updatePromises.push(
+            _supabase.from('bookings').insert([{
+              date: waiter.date,
+              lesson: waiter.lesson,
+              teacher_name: waiter.teacher_name,
+              device_type: waiter.device_type,
+              quantity: remainQty,
+              class: waiter.class,
+              subject: waiter.subject,
+              room: waiter.room,
+              remarks: `[候補] ${waiter.remarks || ''}`.replace('[候補] [候補]', '[候補]').trim(),
+              status: 'waiting',
+              user_email: waiter.user_email,
+              created_at: waiter.created_at
+            }])
+          );
+        }
+      }
+
+      if (updatePromises.length > 0) {
+        await Promise.all(updatePromises);
+      }
+    }
+  }
+}
+
+// ================= 💡 修正 2：標記欠取機（欠取2次自動精算 2 工作天禁借，並自動強制扣減下2次借用單） =================
+async function markAsMissed(bookingId, teacherName) {
+  if (!confirm(`確定要將 ${teacherName} 的此筆記錄標記為「欠取機」嗎？\\n系統將自動為該老師累加 1 次欠取次數！`)) return;
+
+  try {
+    // 1. 先把當前這筆記錄標記為 missed
+    await _supabase.from('bookings').update({ status: 'missed' }).eq('id', bookingId);
+
+    const { data: teacher } = await _supabase.from('teachers').select('missed_count').eq('name', teacherName).single();
+
+    if (teacher) {
+      const newCount = (teacher.missed_count || 0) + 1;
+      const autoSuspend = newCount >= 2;
+      let suspendedUntilDate = null;
+      let deletedNames = [];
+
+      if (autoSuspend) {
+        // 1. 計算 2 個工作天後的停借截止日期
+        suspendedUntilDate = getSuspendedUntilDate(new Date());
+
+        // 2. 核心功能：自動尋找該老師【當天及未來】最接近的下 2 次預約
+        const todayStr = getTodayString();
+        const { data: futureBookings } = await _supabase
+          .from('bookings')
+          .select('*')
+          .eq('teacher_name', teacherName)
+          .gte('date', todayStr)
+          .order('date', { ascending: true })
+          .order('lesson', { ascending: true })
+          .limit(2);
+
+        if (futureBookings && futureBookings.length > 0) {
+          for (let fb of futureBookings) {
+            // 使用共用的刪除與回補邏輯，釋放出的設備會自動遞補給後續候補的同事！
+            await deleteBookingWithPromotion(fb);
+            deletedNames.push(`${fb.date} (${LESSON_NAMES[fb.lesson]} - ${fb.device_type} x ${fb.quantity}部)`);
+          }
+        }
+      }
+
+      // 3. 儲存最新狀態至 teachers 資料表
+      await _supabase
+        .from('teachers')
+        .update({ 
+          missed_count: newCount, 
+          is_suspended: autoSuspend, 
+          suspended_until: suspendedUntilDate 
+        })
+        .eq('name', teacherName);
+
+      // 4. 組合提示訊息彈窗
+      let baseMsg = `已成功將 ${teacherName} 老師標記為欠取！累計次數更新為 ${newCount} 次。`;
+      if (autoSuspend) {
+        baseMsg += `\\n\\n⚠️ 該老師欠取滿 2 次，已自動列入停借名單（禁用2個工作天至 ${suspendedUntilDate}）！`;
+        if (deletedNames.length > 0) {
+          baseMsg += `\\n\\n已自動強制刪除並釋出該老師以下最接近的 ${deletedNames.length} 筆預約：\\n- ` + deletedNames.join('\\n- ');
+        } else {
+          baseMsg += `\\n\\n（該老師目前暫無未來預約記錄可供扣減）`;
+        }
+      }
+      alert(baseMsg);
+    }
+
+    loadAdminBookings();
+    loadAdminTeachers();
+
+  } catch (err) {
+    console.error("標記欠取及自動扣減未來預約出錯:", err);
+    alert('標記失敗，請稍後再試。');
+  }
+}
+
+// ================= 管理員手動強制刪除預約 =================
 async function deleteBookingAdmin(id) {
-  if (!confirm('管理員確定要強制刪除此借用記錄嗎？\n釋出的庫存將優先自動分派給當天同課節候補的同事。')) return;
+  if (!confirm('管理員確定要強制刪除此借用記錄嗎？\\n釋出的庫存將優先自動分派給當天同課節候補的同事。')) return;
   if (!_supabase) return;
 
   try {
-    // 1. 先取得即將被刪除的預約資訊
     const { data: targetBooking, error: fetchErr } = await _supabase
       .from('bookings')
-      .select('date, lesson, device_type, quantity, status')
+      .select('*')
       .eq('id', id)
       .single();
 
@@ -295,102 +428,16 @@ async function deleteBookingAdmin(id) {
       return;
     }
 
-    // 2. 執行刪除
-    const { error: deleteErr } = await _supabase.from('bookings').delete().eq('id', id);
-    if (deleteErr) {
-      alert('刪除失敗：' + deleteErr.message);
-      return;
-    }
-
-    // 3. 核心：如果被刪除的原本不是候補（即釋放了真實庫存），則啟動「自動遞補與拆單」邏輯
-    if (targetBooking.status !== 'waiting') {
-      let releasedQty = targetBooking.quantity;
-      const bookingDate = targetBooking.date;
-      const lesson = targetBooking.lesson;
-      const deviceType = targetBooking.device_type;
-
-      // 4. 必須精確限制在同日期、同課節、同設備、候補中的預約
-      const { data: waitingList, error: waitErr } = await _supabase
-        .from('bookings')
-        .select('*')
-        .eq('date', bookingDate)
-        .eq('lesson', lesson)
-        .eq('device_type', deviceType)
-        .eq('status', 'waiting')
-        .order('created_at', { ascending: true });
-
-      if (!waitErr && waitingList && waitingList.length > 0) {
-        let updatePromises = [];
-        let notifyMessages = [];
-
-        for (let waiter of waitingList) {
-          if (releasedQty <= 0) break;
-
-          if (waiter.quantity <= releasedQty) {
-            // 情況 A：庫存足夠 -> 直接全額補上 (扶正)
-            releasedQty -= waiter.quantity;
-            
-            const cleanedRemarks = (waiter.remarks || '').replace('[候補]', '').trim();
-            const promotedRemarks = `[候補成功] ${cleanedRemarks}`.trim();
-
-            updatePromises.push(
-              _supabase.from('bookings')
-                .update({ status: 'pending', remarks: promotedRemarks })
-                .eq('id', waiter.id)
-            );
-            notifyMessages.push(`🎉 當天候補第 1 順位 ${waiter.teacher_name} 老師（${waiter.quantity} 部 ${deviceType}）已全額成功補上！`);
-
-          } else {
-            // 情況 B：庫存不足 -> 智能拆單
-            const partQty = releasedQty;
-            const remainQty = waiter.quantity - partQty;
-            releasedQty = 0;
-
-            const cleanedRemarks = (waiter.remarks || '').replace('[候補]', '').trim();
-            const promotedRemarks = `[候補成功] ${cleanedRemarks}`.trim();
-
-            updatePromises.push(
-              _supabase.from('bookings')
-                .update({ quantity: partQty, status: 'pending', remarks: promotedRemarks })
-                .eq('id', waiter.id)
-            );
-
-            updatePromises.push(
-              _supabase.from('bookings').insert([{
-                date: waiter.date,
-                lesson: waiter.lesson,
-                teacher_name: waiter.teacher_name,
-                device_type: waiter.device_type,
-                quantity: remainQty,
-                class: waiter.class,
-                subject: waiter.subject,
-                room: waiter.room,
-                remarks: `[候補] ${waiter.remarks || ''}`.replace('[候補] [候補]', '[候補]').trim(),
-                status: 'waiting',
-                user_email: waiter.user_email,
-                created_at: waiter.created_at
-              }])
-            );
-            notifyMessages.push(`⚖️ 因庫存限制，已為當天 ${waiter.teacher_name} 老師拆單：\n- 成功補上 ${partQty} 部\n- 剩餘 ${remainQty} 部繼續在候補名單中排隊！`);
-          }
-        }
-
-        // 執行所有遞補更新
-        if (updatePromises.length > 0) {
-          await Promise.all(updatePromises);
-          alert(`✅ 取消預約成功！釋出庫存已自動分派完成：\n\n` + notifyMessages.join('\n\n'));
-        }
-      }
-    }
-
-    // 重新載入數據
+    await deleteBookingWithPromotion(targetBooking);
+    alert('✅ 強制刪除預約成功！釋出庫存已分派完成。');
     loadAdminBookings();
 
   } catch (err) {
-    console.error("管理員取消預約並自動遞補出錯:", err);
-    alert('取消失敗，請稍後再試。');
+    console.error("管理員強制刪除預約出錯:", err);
+    alert('刪除失敗，請稍後再試。');
   }
 }
+
 
 // ================= 4. 教師欠取與黑名單管理 =================
 // ================= admin.js 中的 loadAdminTeachers 函數 (已優化：預覽教師電郵) =================

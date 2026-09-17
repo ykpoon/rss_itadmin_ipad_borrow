@@ -130,6 +130,7 @@ async function checkIsAdminFromDB(email) {
   }
 }
 
+// ================= index.js 中的 checkAuth 函數（已優化：登入切換即時重載教師綁定） =================
 async function checkAuth() {
   try {
     const { data: { session } } = await _supabase.auth.getSession();
@@ -138,6 +139,7 @@ async function checkAuth() {
     return new Promise((resolve) => {
       _supabase.auth.onAuthStateChange(async (_event, session) => {
         await updateAuthUI(session?.user || null);
+        await loadTeachers(); // 💡 新增：登入變更時立即動態重算單一教師綁定
         renderTable(); 
         resolve();
       });
@@ -147,6 +149,7 @@ async function checkAuth() {
     console.error("Auth 初始化錯誤:", e);
   }
 }
+
 
 async function updateAuthUI(user) {
   const loginBtn = document.getElementById('loginBtn');
@@ -226,14 +229,16 @@ async function loadResources() {
   updateRemainingPreview();
 }
 
+// ================= index.js 中的 loadTeachers 函數（已優化：單一綁定登入者，鎖定禁借按鈕） =================
 async function loadTeachers() {
   const selectedDateInput = document.getElementById('selectDate');
   const queryDateStr = selectedDateInput ? selectedDateInput.value : getTodayString();
 
   try {
+    // 💡 讀取 teachers 資料表，包含我們新加入的 email 欄位
     const { data, error } = await _supabase
       .from('teachers')
-      .select('name, is_suspended, suspended_until, missed_count');
+      .select('name, email, is_suspended, suspended_until, missed_count');
 
     if (!error && data && data.length > 0) {
       teachersList = data.sort((a, b) => a.name.localeCompare(b.name, 'zh-HK'));
@@ -243,108 +248,89 @@ async function loadTeachers() {
   }
 
   const select = document.getElementById('teacherSelect');
+  const submitBtn = document.getElementById('submitBtn');
+  
   if (select) {
-    select.innerHTML = '<option value="" disabled selected>請選擇老師姓名...</option>';
+    select.innerHTML = '';
     
-    teachersList.forEach(teacher => {
+    if (!currentUser) {
+      // 💡 情況 1：未登入 -> 下拉選單與提交按鈕鎖定
       const option = document.createElement('option');
-      option.value = teacher.name;
-
-      let currentlySuspended = false;
-      if (teacher.is_suspended) {
-        if (teacher.suspended_until) {
-          if (queryDateStr <= teacher.suspended_until) {
+      option.value = "";
+      option.textContent = "請先登入學校帳號...";
+      option.disabled = true;
+      option.selected = true;
+      select.appendChild(option);
+      
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fa-solid fa-lock mr-1.5"></i> 請先登入再登記';
+        submitBtn.className = "mt-5 w-full bg-slate-400 text-white font-bold py-3 px-4 rounded-xl cursor-not-allowed flex items-center justify-center gap-1.5 text-sm";
+      }
+    } else {
+      // 💡 情況 2：已登入 -> 在資料庫中尋找與目前登入 Email 匹配的老師
+      const matchedTeacher = teachersList.find(t => t.email && t.email.trim().toLowerCase() === currentUser.email.trim().toLowerCase());
+      
+      if (matchedTeacher) {
+        let currentlySuspended = false;
+        if (matchedTeacher.is_suspended) {
+          if (matchedTeacher.suspended_until) {
+            if (queryDateStr <= matchedTeacher.suspended_until) {
+              currentlySuspended = true;
+            }
+          } else {
             currentlySuspended = true;
           }
+        }
+        
+        const option = document.createElement('option');
+        option.value = matchedTeacher.name;
+        option.selected = true;
+        
+        if (currentlySuspended) {
+          // 💡 情況 2-A：帳號處於停借狀態 -> 鎖定按鈕，並變更為紅色警戒樣式
+          const until = matchedTeacher.suspended_until ? `至 ${matchedTeacher.suspended_until}` : '無限期';
+          option.textContent = `⛔ ${matchedTeacher.name} (暫停借用中)`;
+          option.classList.add('text-rose-500');
+          select.appendChild(option);
+          
+          if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = `<i class="fa-solid fa-ban mr-1.5"></i> 您的借用權限已被暫停 (${until})`;
+            submitBtn.className = "mt-5 w-full bg-rose-500/20 text-rose-500 border border-rose-500/30 font-bold py-3 px-4 rounded-xl cursor-not-allowed flex items-center justify-center gap-1.5 text-sm";
+          }
         } else {
-          currentlySuspended = true;
+          // 💡 情況 2-B：帳號狀態正常 -> 只顯示自己名字，解鎖按鈕
+          option.textContent = matchedTeacher.name;
+          select.appendChild(option);
+          
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane mr-1.5"></i> 確認提交借用登記';
+            submitBtn.className = "mt-5 w-full bg-teal-600 hover:bg-teal-500 text-white font-bold py-3 px-4 rounded-xl shadow-sm transition transform active:scale-95 flex items-center justify-center gap-1.5 text-sm";
+          }
+        }
+      } else {
+        // 💡 情況 3：已登入但學校 Email 未授權登記在資料庫名單中 -> 鎖定按鈕，提示 IT
+        const option = document.createElement('option');
+        option.value = "";
+        option.textContent = "⚠️ 您的電郵未在教師授權名單中";
+        option.disabled = true;
+        option.selected = true;
+        select.appendChild(option);
+        
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.innerHTML = '<i class="fa-solid fa-user-slash mr-1.5"></i> 電郵未在名單中，請聯絡 IT 管理員授權';
+          submitBtn.className = "mt-5 w-full bg-amber-500/20 text-amber-700 border border-amber-500/30 font-bold py-3 px-4 rounded-xl cursor-not-allowed flex items-center justify-center gap-1.5 text-sm";
         }
       }
-
-      if (currentlySuspended) {
-        const until = teacher.suspended_until ? `至 ${teacher.suspended_until}` : '';
-        option.textContent = `⛔ ${teacher.name} (暫停借用 ${until})`;
-        option.disabled = true;
-        option.classList.add('text-rose-500');
-      } else {
-        option.textContent = teacher.name;
-      }
-      select.appendChild(option);
-    });
+    }
   }
 
   renderFrontTeachersTable();
 }
 
-function renderFrontTeachersTable() {
-  const tbody = document.getElementById('frontTeachersTableBody');
-  const badge = document.getElementById('frontSuspendedCount');
-  if (!tbody) return;
-
-  tbody.innerHTML = '';
-
-  const sorted = [...teachersList].sort((a, b) => 
-    (b.is_suspended - a.is_suspended) || (b.missed_count - a.missed_count)
-  );
-
-  if (badge) badge.textContent = `${sorted.filter(t => t.is_suspended).length} 位停借中`;
-
-  sorted.forEach(t => {
-    const tr = document.createElement('tr');
-    tr.className = t.is_suspended ? "bg-rose-50/40" : "hover:bg-slate-50";
-    tr.innerHTML = `
-      <td class="py-3 px-4 font-semibold text-slate-800">${t.name}</td>
-      <td class="py-3 px-4 font-bold ${t.missed_count > 0 ? 'text-rose-600' : 'text-slate-500'}">
-        ${t.missed_count || 0} 次
-      </td>
-      <td class="py-3 px-4">
-        ${t.is_suspended ? '<span class="px-2 py-0.5 bg-rose-100 text-rose-700 rounded font-bold">⛔ 暫停借用中</span>' : '<span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded font-medium">正常</span>'}
-      </td>
-      <td class="py-3 px-4 font-mono text-slate-500 text-[11px]">${t.suspended_until || '--'}</td>
-    `;
-    tbody.appendChild(tr);
-  });
-}
-
-// ================= 4. 實時事件監聽 (Realtime) =================
-function setupRealtime() {
-  _supabase
-    .channel('public:bookings')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
-      fetchAndRender();
-      fetchMonthlyData();
-    })
-    .subscribe();
-
-  _supabase
-    .channel('public:teachers')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'teachers' }, () => {
-      loadTeachers();
-    })
-    .subscribe();
-
-  _supabase
-    .channel('public:resources')
-    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'resources' }, async () => {
-      await loadResources();
-    })
-    .subscribe();
-
-  _supabase
-    .channel('public:admins')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'admins' }, async () => {
-      if (currentUser) await updateAuthUI(currentUser);
-    })
-    .subscribe();
-
-  _supabase
-    .channel('public:daily_adjustments')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_adjustments' }, () => {
-      fetchAndRender();
-      fetchMonthlyData();
-    })
-    .subscribe();
-}
 
 // ================= 5. 計算庫存與狀態渲染 =================
 async function fetchAndRender() {

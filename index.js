@@ -1,7 +1,7 @@
 // index.js
 // 學校 iPad & 設備借用預約系統 - 前台邏輯控制
 
-// 💡 從 window 物件中取得共用的 Supabase Client 與課節對照表
+// 從 window 物件中取得共用的 Supabase Client 與課節對照表
 const _supabase = window._supabase;
 const LESSON_NAMES = window.LESSON_NAMES;
 
@@ -14,7 +14,7 @@ let monthlyAdjustments = []; // 儲存當月所有的每日庫存調節資料
 const WEEKDAY_NAMES = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
 
 let currentBookings = [];
-let teachersList = []; // 💡 充當本地快取（Cache），避免重複請求資料庫
+let teachersList = []; // 充當本地快取（Cache），避免重複請求資料庫
 let calendarDate = new Date(); // 紀錄月曆當前顯示的年月
 let monthlyBookings = [];      // 儲存當月所有的借用記錄以便統計
 
@@ -129,7 +129,7 @@ async function checkIsAdminFromDB(email) {
   }
 }
 
-// ================= index.js 中的 checkAuth 函數 (已優化：登入切換即時重載教師綁定) =================
+// 登入狀態變更時，立即重算教師綁定
 async function checkAuth() {
   try {
     const { data: { session } } = await _supabase.auth.getSession();
@@ -138,7 +138,7 @@ async function checkAuth() {
     return new Promise((resolve) => {
       _supabase.auth.onAuthStateChange(async (_event, session) => {
         await updateAuthUI(session?.user || null);
-        await loadTeachers(); // 💡 登入變更時，立即重算教師綁定（從快取中讀取，0ms 延遲）
+        await loadTeachers(); // 💡 登入變更時，立即重算教師綁定
         renderTable(); 
         resolve();
       });
@@ -227,12 +227,11 @@ async function loadResources() {
   updateRemainingPreview();
 }
 
-// ================= index.js 中的 loadTeachers 函數（已優化：快取防重置、0ms 瞬間鎖定） =================
+// 💡 已優化：管理員登入前台可看見全校老師名單（按 A-Z 字母排序），普通老師僅能看見自己名字
 async function loadTeachers() {
   const selectedDateInput = document.getElementById('selectDate');
   const queryDateStr = selectedDateInput ? selectedDateInput.value : getTodayString();
 
-  // 💡 效能關鍵：如果本地快取 teachersList 已經有資料，就不需要再向資料庫發起網路請求
   if (teachersList.length === 0) {
     try {
       const { data, error } = await _supabase
@@ -240,7 +239,8 @@ async function loadTeachers() {
         .select('name, email, is_suspended, suspended_until, missed_count');
 
       if (!error && data && data.length > 0) {
-        teachersList = data.sort((a, b) => a.name.localeCompare(b.name, 'zh-HK'));
+        // 💡 姓名按 A-Z 字母或拼音順序進行排序
+        teachersList = data.sort((a, b) => a.name.localeCompare(b.name, 'en'));
       }
     } catch (e) {
       console.warn("載入教師名單出錯", e);
@@ -254,7 +254,6 @@ async function loadTeachers() {
     select.innerHTML = '';
     
     if (!currentUser) {
-      // 情況 1：未登入 -> 下拉選單與提交按鈕鎖定
       const option = document.createElement('option');
       option.value = "";
       option.textContent = "請先登入學校帳號...";
@@ -267,8 +266,47 @@ async function loadTeachers() {
         submitBtn.innerHTML = '<i class="fa-solid fa-lock mr-1.5"></i> 請先登入再登記';
         submitBtn.className = "mt-5 w-full bg-slate-400 text-white font-bold py-3 px-4 rounded-xl cursor-not-allowed flex items-center justify-center gap-1.5 text-sm";
       }
+    } else if (isCurrentUserAdmin) {
+      // 💡 情況 2：管理員登入 -> 解鎖下拉選單並顯示全校所有老師的名字，供代登記
+      const placeholderOpt = document.createElement('option');
+      placeholderOpt.value = "";
+      placeholderOpt.textContent = "請選擇借用老師 (管理員代登記)...";
+      placeholderOpt.disabled = true;
+      placeholderOpt.selected = true;
+      select.appendChild(placeholderOpt);
+
+      teachersList.forEach(teacher => {
+        const option = document.createElement('option');
+        option.value = teacher.name;
+
+        let currentlySuspended = false;
+        if (teacher.is_suspended) {
+          if (teacher.suspended_until) {
+            if (queryDateStr <= teacher.suspended_until) {
+              currentlySuspended = true;
+            }
+          } else {
+            currentlySuspended = true;
+          }
+        }
+
+        if (currentlySuspended) {
+          const until = teacher.suspended_until ? `至 ${teacher.suspended_until}` : '無限期';
+          option.textContent = `⛔ ${teacher.name} (暫停借用中 - ${until})`;
+          option.classList.add('text-rose-500');
+        } else {
+          option.textContent = teacher.name;
+        }
+        select.appendChild(option);
+      });
+
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fa-solid fa-user-shield mr-1.5"></i> 確認提交借用登記 (管理員代登記)';
+        submitBtn.className = "mt-5 w-full bg-teal-600 hover:bg-teal-500 text-white font-bold py-3 px-4 rounded-xl shadow-sm transition transform active:scale-95 flex items-center justify-center gap-1.5 text-sm";
+      }
     } else {
-      // 情況 2：已登入 -> 比對本地快取中的信箱
+      // 情況 3：普通老師登入 -> 僅顯示自己名字，解鎖按鈕
       const matchedTeacher = teachersList.find(t => t.email && t.email.trim().toLowerCase() === currentUser.email.trim().toLowerCase());
       
       if (matchedTeacher) {
@@ -288,7 +326,6 @@ async function loadTeachers() {
         option.selected = true;
         
         if (currentlySuspended) {
-          // 情況 2-A：帳號停借 -> 鎖定按鈕
           const until = matchedTeacher.suspended_until ? `至 ${matchedTeacher.suspended_until}` : '無限期';
           option.textContent = `⛔ ${matchedTeacher.name} (暫停借用中)`;
           option.classList.add('text-rose-500');
@@ -300,7 +337,6 @@ async function loadTeachers() {
             submitBtn.className = "mt-5 w-full bg-rose-500/20 text-rose-500 border border-rose-500/30 font-bold py-3 px-4 rounded-xl cursor-not-allowed flex items-center justify-center gap-1.5 text-sm";
           }
         } else {
-          // 情況 2-B：正常 -> 顯示名字，啟用按鈕
           option.textContent = matchedTeacher.name;
           select.appendChild(option);
           
@@ -311,7 +347,6 @@ async function loadTeachers() {
           }
         }
       } else {
-        // 情況 3：信箱不在名單中
         const option = document.createElement('option');
         option.value = "";
         option.textContent = "⚠️ 您的電郵未在教師授權名單中";
@@ -374,7 +409,6 @@ function setupRealtime() {
   _supabase
     .channel('public:teachers')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'teachers' }, () => {
-      // 💡 實時資料庫變更時才重置快取，重新加載
       teachersList = [];
       loadTeachers();
     })
@@ -668,7 +702,7 @@ function renderDashboard() {
     // 優雅清新的淺灰色卡片
     card.className = "bg-white border border-slate-200/80 rounded-2xl p-4 flex flex-col justify-between shadow-xs hover:border-teal-500/20 hover:shadow-md transition-all duration-200 transform hover:-translate-y-0.5";
     card.innerHTML = `
-      <!-- 課節標題：極致字型加粗、行高完美 -->
+      <!-- 課節標題 -->
       <div class="text-sm font-extrabold text-slate-700 mb-3 pb-1.5 border-b border-slate-200/60 flex justify-between items-center">
         <span>${LESSON_NAMES[l]}</span>
         <span class="w-1.5 h-1.5 rounded-full bg-teal-500"></span>
@@ -873,7 +907,9 @@ window.handleFormSubmit = async function(event) {
     alert('請先選擇借用老師！');
     if (submitBtn) {
       submitBtn.disabled = false;
-      submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
+      submitBtn.innerHTML = isCurrentUserAdmin 
+        ? '<i class="fa-solid fa-user-shield mr-1.5"></i> 確認提交借用登記 (管理員代登記)' 
+        : '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
     }
     return;
   }
@@ -891,15 +927,15 @@ window.handleFormSubmit = async function(event) {
     }
   }
 
-  // 🟢 修改為：如果是管理員代登記，就繞過這個禁借限制（加上 !isCurrentUserAdmin）
+  // 💡 已修正：如果是管理員代登記，就允許提交，不彈出禁借提示
   if (isTeacherCurrentlySuspended && !isCurrentUserAdmin) {
     const until = teacherRecord.suspended_until ? `至 ${teacherRecord.suspended_until}` : '';
     alert(`❌ 借用失敗：${teacher_name} 老師在 ${date} 當天仍處於停止借用期 (${until})！`);
-    // ...
-
     if (submitBtn) {
       submitBtn.disabled = false;
-      submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
+      submitBtn.innerHTML = isCurrentUserAdmin 
+        ? '<i class="fa-solid fa-user-shield mr-1.5"></i> 確認提交借用登記 (管理員代登記)' 
+        : '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
     }
     return;
   }
@@ -914,7 +950,9 @@ window.handleFormSubmit = async function(event) {
     } else {
       if (submitBtn) {
         submitBtn.disabled = false;
-        submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
+        submitBtn.innerHTML = isCurrentUserAdmin 
+          ? '<i class="fa-solid fa-user-shield mr-1.5"></i> 確認提交借用登記 (管理員代登記)' 
+          : '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
       }
       return;
     }
@@ -951,7 +989,9 @@ window.handleFormSubmit = async function(event) {
 
   if (submitBtn) {
     submitBtn.disabled = false;
-    submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
+    submitBtn.innerHTML = isCurrentUserAdmin 
+      ? '<i class="fa-solid fa-user-shield mr-1.5"></i> 確認提交借用登記 (管理員代登記)' 
+      : '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
   }
 };
 

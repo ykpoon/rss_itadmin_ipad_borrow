@@ -366,7 +366,7 @@ async function loadAdminTeachers() {
   tbody.innerHTML = '';
   if (!data) return;
 
-  data.sort((a, b) => (b.is_suspended - a.is_suspended) || (b.missed_count - a.missed_count));
+ data.sort((a, b) => a.name.localeCompare(b.name, 'en'));
 
   const suspendedTotal = data.filter(t => t.is_suspended).length;
   const suspendedCountEl = document.getElementById('suspendedCount');

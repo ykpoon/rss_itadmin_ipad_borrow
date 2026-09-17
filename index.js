@@ -891,9 +891,12 @@ window.handleFormSubmit = async function(event) {
     }
   }
 
-  if (isTeacherCurrentlySuspended) {
+  // 🟢 修改為：如果是管理員代登記，就繞過這個禁借限制（加上 !isCurrentUserAdmin）
+  if (isTeacherCurrentlySuspended && !isCurrentUserAdmin) {
     const until = teacherRecord.suspended_until ? `至 ${teacherRecord.suspended_until}` : '';
     alert(`❌ 借用失敗：${teacher_name} 老師在 ${date} 當天仍處於停止借用期 (${until})！`);
+    // ...
+
     if (submitBtn) {
       submitBtn.disabled = false;
       submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';

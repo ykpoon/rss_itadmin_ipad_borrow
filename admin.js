@@ -225,7 +225,7 @@ async function updateBookingStatus(bookingId, status) {
 }
 
 async function markAsMissed(bookingId, teacherName) {
-  if (!confirm(`確定要將 ${teacherName} 的此筆記錄標記為「欠取機」嗎？\n系統將自動為該老師累加 1 次欠取次數！`)) return;
+  if (!confirm(`確定要將 ${teacherName} 的此筆記錄標記為「欠取機」嗎？\n系統將自動為該老師累加 1次欠取次數！`)) return;
 
   await _supabase.from('bookings').update({ status: 'missed' }).eq('id', bookingId);
 
@@ -242,10 +242,119 @@ async function markAsMissed(bookingId, teacherName) {
   loadAdminTeachers();
 }
 
+// ================= 💡 已重構：後台強制刪除也全面支援「當天當節自動遞補、智能拆單與 [候補成功] 寫入」功能 =================
 async function deleteBookingAdmin(id) {
-  if (!confirm('管理員確定要強制刪除此借用記錄嗎？')) return;
-  await _supabase.from('bookings').delete().eq('id', id);
-  loadAdminBookings();
+  if (!confirm('管理員確定要強制刪除此借用記錄嗎？\n釋出的庫存將優先自動分派給當天同課節候補的同事。')) return;
+  if (!_supabase) return;
+
+  try {
+    // 1. 先取得即將被刪除的預約資訊
+    const { data: targetBooking, error: fetchErr } = await _supabase
+      .from('bookings')
+      .select('date, lesson, device_type, quantity, status')
+      .eq('id', id)
+      .single();
+
+    if (fetchErr || !targetBooking) {
+      alert('無法取得預約資訊，或預約已被取消。');
+      return;
+    }
+
+    // 2. 執行刪除
+    const { error: deleteErr } = await _supabase.from('bookings').delete().eq('id', id);
+    if (deleteErr) {
+      alert('刪除失敗：' + deleteErr.message);
+      return;
+    }
+
+    // 3. 核心：如果被刪除的原本不是候補（即釋放了真實庫存），則啟動「自動遞補與拆單」邏輯
+    if (targetBooking.status !== 'waiting') {
+      let releasedQty = targetBooking.quantity;
+      const bookingDate = targetBooking.date;
+      const lesson = targetBooking.lesson;
+      const deviceType = targetBooking.device_type;
+
+      // 4. 必須精確限制在同日期、同課節、同設備、候補中的預約
+      const { data: waitingList, error: waitErr } = await _supabase
+        .from('bookings')
+        .select('*')
+        .eq('date', bookingDate)
+        .eq('lesson', lesson)
+        .eq('device_type', deviceType)
+        .eq('status', 'waiting')
+        .order('created_at', { ascending: true });
+
+      if (!waitErr && waitingList && waitingList.length > 0) {
+        let updatePromises = [];
+        let notifyMessages = [];
+
+        for (let waiter of waitingList) {
+          if (releasedQty <= 0) break;
+
+          if (waiter.quantity <= releasedQty) {
+            // 情況 A：庫存足夠 -> 直接全額補上 (扶正)
+            releasedQty -= waiter.quantity;
+            
+            const cleanedRemarks = (waiter.remarks || '').replace('[候補]', '').trim();
+            const promotedRemarks = `[候補成功] ${cleanedRemarks}`.trim();
+
+            updatePromises.push(
+              _supabase.from('bookings')
+                .update({ status: 'pending', remarks: promotedRemarks })
+                .eq('id', waiter.id)
+            );
+            notifyMessages.push(`🎉 當天候補第 1 順位 ${waiter.teacher_name} 老師（${waiter.quantity} 部 ${deviceType}）已全額成功補上！`);
+
+          } else {
+            // 情況 B：庫存不足 -> 智能拆單
+            const partQty = releasedQty;
+            const remainQty = waiter.quantity - partQty;
+            releasedQty = 0;
+
+            const cleanedRemarks = (waiter.remarks || '').replace('[候補]', '').trim();
+            const promotedRemarks = `[候補成功] ${cleanedRemarks}`.trim();
+
+            updatePromises.push(
+              _supabase.from('bookings')
+                .update({ quantity: partQty, status: 'pending', remarks: promotedRemarks })
+                .eq('id', waiter.id)
+            );
+
+            updatePromises.push(
+              _supabase.from('bookings').insert([{
+                date: waiter.date,
+                lesson: waiter.lesson,
+                teacher_name: waiter.teacher_name,
+                device_type: waiter.device_type,
+                quantity: remainQty,
+                class: waiter.class,
+                subject: waiter.subject,
+                room: waiter.room,
+                remarks: `[候補] ${waiter.remarks || ''}`.replace('[候補] [候補]', '[候補]').trim(),
+                status: 'waiting',
+                user_email: waiter.user_email,
+                created_at: waiter.created_at
+              }])
+            );
+            notifyMessages.push(`⚖️ 因庫存限制，已為當天 ${waiter.teacher_name} 老師拆單：\n- 成功補上 ${partQty} 部\n- 剩餘 ${remainQty} 部繼續在候補名單中排隊！`);
+          }
+        }
+
+        // 執行所有遞補更新
+        if (updatePromises.length > 0) {
+          await Promise.all(updatePromises);
+          alert(`✅ 取消預約成功！釋出庫存已自動分派完成：\n\n` + notifyMessages.join('\n\n'));
+        }
+      }
+    }
+
+    // 重新載入數據
+    loadAdminBookings();
+
+  } catch (err) {
+    console.error("管理員取消預約並自動遞補出錯:", err);
+    alert('取消失敗，請稍後再試。');
+  }
 }
 
 // ================= 4. 教師欠取與黑名單管理 =================

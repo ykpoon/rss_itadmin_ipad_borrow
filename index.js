@@ -604,7 +604,7 @@ function renderCalendar() {
     grid.appendChild(empty);
   }
 
-  const LESSON_SHORTS = { 1: '第 1 節', 2: '第 2 節', 3: '第 3 節', 4: '第 4 節', 5: '第 5 節', 6: '第 6 節', 7: '放學' };
+  const LESSON_SHORTS = { 1: '第 1 節', 2: '第 2 節', 3: '第 3 節', 4: '第 4 節', 5: '第 5 節', 6: '第 6 節', 7: '第 7 節' };
 
   for (let day = 1; day <= totalDays; day++) {
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;

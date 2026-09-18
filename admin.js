@@ -339,9 +339,9 @@ async function deleteBookingWithPromotion(booking) {
   }
 }
 
-// ================= 💡 修正 2：標記欠取機（欠取2次自動精算 2 工作天禁借，並自動強制扣減下2次借用單） =================
+// ================= admin.js 中的 markAsMissed 函數 (已修正：自動刪除停借期間內的所有預約，並自動遞補候補) =================
 async function markAsMissed(bookingId, teacherName) {
-  if (!confirm(`確定要將 ${teacherName} 的此筆記錄標記為「欠取機」嗎？\\n系統將自動為該老師累加 1 次欠取次數！`)) return;
+  if (!confirm(`確定要將 ${teacherName} 的此筆記錄標記為「欠取機」嗎？\n系統將自動為該老師累加 1 次欠取次數！`)) return;
 
   try {
     // 1. 先把當前這筆記錄標記為 missed
@@ -356,30 +356,30 @@ async function markAsMissed(bookingId, teacherName) {
       let deletedNames = [];
 
       if (autoSuspend) {
-        // 1. 計算 2 個工作天後的停借截止日期
+        // 1. 計算 2 個工作天後的停借截止日期 (跳過六、日)
         suspendedUntilDate = getSuspendedUntilDate(new Date());
 
-        // 2. 核心功能：自動尋找該老師【當天及未來】最接近的下 2 次預約
+        // 2. 💡 核心修正：自動尋找該老師在【停借期間內】（即今天至停借截止日）的所有已預約借用單
         const todayStr = getTodayString();
-        const { data: futureBookings } = await _supabase
+        const { data: suspendedPeriodBookings } = await _supabase
           .from('bookings')
           .select('*')
           .eq('teacher_name', teacherName)
           .gte('date', todayStr)
+          .lte('date', suspendedUntilDate) // 👈 限制在停借截止日（含）之前
           .order('date', { ascending: true })
-          .order('lesson', { ascending: true })
-          .limit(2);
+          .order('lesson', { ascending: true });
 
-        if (futureBookings && futureBookings.length > 0) {
-          for (let fb of futureBookings) {
-            // 使用共用的刪除與回補邏輯，釋放出的設備會自動遞補給後續候補的同事！
+        if (suspendedPeriodBookings && suspendedPeriodBookings.length > 0) {
+          for (let fb of suspendedPeriodBookings) {
+            // 使用自動遞補邏輯：刪除該預約，並自動把設備分派給後面排隊候補的老師！
             await deleteBookingWithPromotion(fb);
             deletedNames.push(`${fb.date} (${LESSON_NAMES[fb.lesson]} - ${fb.device_type} x ${fb.quantity}部)`);
           }
         }
       }
 
-      // 3. 儲存最新狀態至 teachers 資料表
+      // 3. 儲存最新狀態（停借狀態與截止日期）至 teachers 表
       await _supabase
         .from('teachers')
         .update({ 
@@ -389,14 +389,14 @@ async function markAsMissed(bookingId, teacherName) {
         })
         .eq('name', teacherName);
 
-      // 4. 組合提示訊息彈窗
+      // 4. 組合提示訊息彈窗告知管理員
       let baseMsg = `已成功將 ${teacherName} 老師標記為欠取！累計次數更新為 ${newCount} 次。`;
       if (autoSuspend) {
-        baseMsg += `\\n\\n⚠️ 該老師欠取滿 2 次，已自動列入停借名單（禁用2個工作天至 ${suspendedUntilDate}）！`;
+        baseMsg += `\n\n⚠️ 該老師已累計欠取 2 次，系統已自動暫停其借用權限 2 個工作天（停借至 ${suspendedUntilDate}，即下個工作天方可借用）！`;
         if (deletedNames.length > 0) {
-          baseMsg += `\\n\\n已自動強制刪除並釋出該老師以下最接近的 ${deletedNames.length} 筆預約：\\n- ` + deletedNames.join('\\n- ');
+          baseMsg += `\n\n已自動強制取消該老師在「停借期間內」的以下 ${deletedNames.length} 筆預約，並已將釋出庫存自動遞補給候補老師：\n- ` + deletedNames.join('\n- ');
         } else {
-          baseMsg += `\\n\\n（該老師目前暫無未來預約記錄可供扣減）`;
+          baseMsg += `\n\n（該老師在停借期間內目前暫無任何預約記錄可供扣減）`;
         }
       }
       alert(baseMsg);
@@ -410,6 +410,7 @@ async function markAsMissed(bookingId, teacherName) {
     alert('標記失敗，請稍後再試。');
   }
 }
+
 
 // ================= 管理員手動強制刪除預約 =================
 async function deleteBookingAdmin(id) {

@@ -138,7 +138,7 @@ async function checkAuth() {
     return new Promise((resolve) => {
       _supabase.auth.onAuthStateChange(async (_event, session) => {
         await updateAuthUI(session?.user || null);
-        await loadTeachers(); // 💡 登入變更時，立即重算教師綁定
+        await loadTeachers(); // 登入變更時，立即重算教師綁定
         renderTable(); 
         resolve();
       });
@@ -227,7 +227,7 @@ async function loadResources() {
   updateRemainingPreview();
 }
 
-// 💡 已優化：管理員登入前台可看見全校老師名單（按 A-Z 字母排序），普通老師僅能看見自己名字
+// 已優化：管理員登入前台可看見全校老師名單（按 A-Z 字母排序），普通老師僅能看見自己名字
 async function loadTeachers() {
   const selectedDateInput = document.getElementById('selectDate');
   const queryDateStr = selectedDateInput ? selectedDateInput.value : getTodayString();
@@ -239,7 +239,7 @@ async function loadTeachers() {
         .select('name, email, is_suspended, suspended_until, missed_count');
 
       if (!error && data && data.length > 0) {
-        // 💡 姓名按 A-Z 字母或拼音順序進行排序
+        // 姓名按 A-Z 字母或拼音順序進行排序
         teachersList = data.sort((a, b) => a.name.localeCompare(b.name, 'en'));
       }
     } catch (e) {
@@ -267,7 +267,7 @@ async function loadTeachers() {
         submitBtn.className = "mt-5 w-full bg-slate-400 text-white font-bold py-3 px-4 rounded-xl cursor-not-allowed flex items-center justify-center gap-1.5 text-sm";
       }
     } else if (isCurrentUserAdmin) {
-      // 💡 情況 2：管理員登入 -> 解鎖下拉選單並顯示全校所有老師的名字，供代登記
+      // 情況 2：管理員登入 -> 解鎖下拉選單並顯示全校所有老師的名字，供代登記
       const placeholderOpt = document.createElement('option');
       placeholderOpt.value = "";
       placeholderOpt.textContent = "請選擇借用老師 (管理員代登記)...";
@@ -666,10 +666,33 @@ function renderCalendar() {
   }
 }
 
+// ================= index.js 中的 renderDashboard 函數（已優化：未登入鎖定即時設備庫存看板） =================
 function renderDashboard() {
   const grid = document.getElementById('lessonsGrid');
   if (!grid) return;
   grid.innerHTML = '';
+
+  const subtitleEl = document.getElementById('totalStockSubtitle');
+
+  // 💡 核心資安保護：如果未登入 Google，不顯示即時設備庫存看板，展示高質感鎖定提示
+  if (!currentUser) {
+    if (subtitleEl) subtitleEl.textContent = "🔒 請先登入以查看校內設備基準總量";
+    grid.className = "flex items-center justify-center py-10 w-full col-span-full";
+    grid.innerHTML = `
+      <div class="text-center py-4">
+        <i class="fa-solid fa-user-lock text-4xl mb-3 text-teal-600/60 animate-pulse"></i>
+        <p class="text-sm font-extrabold text-slate-600">即時設備庫存已安全鎖定</p>
+        <p class="text-xs text-slate-400 font-semibold mt-1">此看板涉及校內物資即時分配資訊，請先登入解鎖查看。</p>
+      </div>
+    `;
+    return;
+  }
+
+  // 已登入狀態：還原標準的 Grid 佈局，並更新基準總量說明
+  if (subtitleEl) {
+    subtitleEl.textContent = `全校總量基準：iPad ${totalStock.iPad} 部 ｜ Mobile ${totalStock.Mobile} 部`;
+  }
+  grid.className = "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-4";
 
   for (let l = 1; l <= 7; l++) {
     const remIpad = getRemainingStock(l, 'iPad');
@@ -814,7 +837,7 @@ function renderTable() {
     const canDelete = isCurrentUserAdmin || isOwner;
     const isWaiting = (item.remarks && item.remarks.includes('[候補]')) || item.status === 'waiting';
 
-    // 💡 1. 候補橘色標籤（已換行）
+    // 💡 1. 原有的候補橘色標籤（已換行）
     let waitingBadgeHTML = '';
     if (isWaiting) {
       const key = `${item.lesson}_${item.device_type}`;

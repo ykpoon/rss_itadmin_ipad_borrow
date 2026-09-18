@@ -34,9 +34,9 @@
     }
   </style>
 </head>
+<!-- index.html (修改後：乾淨、修正後的開場動畫區塊) -->
 <body class="custom-gradient-bg text-slate-700 min-h-screen flex flex-col">
-  <!-- 💡 新增：卍慈 AI 工作室專屬 - 科技感開場載入動畫遮罩 (Welcome Loading Splash) -->
-  <!-- 💡 已還原：還原為 0.7 秒 (duration-700) 的極致流暢版開場動畫 -->
+  <!-- 💡 僅保留此單一、結構完整的開場動畫遮罩 -->
   <div id="app-loader" class="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-teal-50/95 backdrop-blur-md transition-all duration-700 ease-in-out">
     <div class="flex flex-col items-center max-w-sm px-6 text-center space-y-6">
       
@@ -68,35 +68,6 @@
     </div>
   </div>
 
-      
-      <!-- 1. Logo 動畫：結合呼吸脈動與淡入，極具科技感 -->
-      <div class="relative">
-        <!-- Logo 後方的科技感微光晕 -->
-        <div class="absolute inset-0 bg-teal-400/20 rounded-2xl blur-xl animate-pulse"></div>
-        <img 
-          src="logo.png" 
-          alt="卍慈 AI 工作室 Logo" 
-          class="relative h-20 w-auto object-contain rounded-2xl p-2 bg-white shadow-md shadow-teal-500/10 transform transition duration-1000 scale-95 animate-bounce"
-          style="animation: pulse 2s infinite ease-in-out;"
-        />
-      </div>
-
-      <!-- 2. 精緻文字與載入條 -->
-      <div class="space-y-3 w-64">
-        <h3 class="text-sm font-extrabold tracking-widest text-teal-800 uppercase font-mono">
-          System Initializing
-        </h3>
-        <!-- 💡 科技感進度條底盒 -->
-        <div class="h-1 w-full bg-teal-100 rounded-full overflow-hidden">
-          <!-- 💡 橫向不斷循環的流光進度條 -->
-          <div class="h-full bg-gradient-to-r from-teal-500 to-cyan-400 rounded-full w-1/2 animate-[loading_1.5s_infinite_ease-in-out]"></div>
-        </div>
-        <p class="text-[11px] text-slate-400 font-bold">正在安全連線至學校設備資料庫...</p>
-      </div>
-
-    </div>
-  </div>
-
   <!-- CSS 動態效果定義 -->
   <style>
     /* Logo 呼吸漸變脈動 */
@@ -111,6 +82,7 @@
       100% { margin-left: -50%; }
     }
   </style>
+
 
   <!-- 頂部導航列 -->
   <header class="bg-white/90 backdrop-blur-md border-b border-teal-500/10 sticky top-0 z-50">

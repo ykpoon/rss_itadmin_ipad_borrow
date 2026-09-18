@@ -34,9 +34,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       loader.classList.add('opacity-0', '-translate-y-full');
       setTimeout(() => {
         loader.classList.add('hidden');
-      }, 700);
+      }, 800);
     }
-  }, 900);
+  }, 800);
 });
 
 function getTodayString() {

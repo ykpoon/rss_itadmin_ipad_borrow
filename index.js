@@ -373,6 +373,21 @@ function renderFrontTeachersTable() {
 
   tbody.innerHTML = '';
 
+  // 💡 核心資安保護：如果未登入 Google，不顯示任何實際預約資料，展示高質感鎖定提示
+  if (!currentUser) {
+    if (badge) badge.textContent = "請先登入";
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="4" class="py-16 text-center text-slate-400 font-bold">
+          <i class="fa-solid fa-user-shield text-3xl mb-2 text-rose-500/55 animate-pulse"></i>
+          <p class="text-sm">此數據涉及教師內部隱私資訊</p>
+          <p class="text-xs text-slate-400 font-semibold mt-1">請先登入您的學校 Google 帳號以查看欠取統計與停借公告。</p>
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
   const sorted = [...teachersList].sort((a, b) => 
     (b.is_suspended - a.is_suspended) || (b.missed_count - a.missed_count)
   );
@@ -702,7 +717,7 @@ function renderDashboard() {
     // 優雅清新的淺灰色卡片
     card.className = "bg-white border border-slate-200/80 rounded-2xl p-4 flex flex-col justify-between shadow-xs hover:border-teal-500/20 hover:shadow-md transition-all duration-200 transform hover:-translate-y-0.5";
     card.innerHTML = `
-      <!-- 課節標題 -->
+      <!-- 課節標題：極致字型加粗、行高完美 -->
       <div class="text-sm font-extrabold text-slate-700 mb-3 pb-1.5 border-b border-slate-200/60 flex justify-between items-center">
         <span>${LESSON_NAMES[l]}</span>
         <span class="w-1.5 h-1.5 rounded-full bg-teal-500"></span>
@@ -742,8 +757,33 @@ function renderTable() {
   const countBadge = document.getElementById('recordCount');
   if (!tbody) return;
 
-  countBadge.textContent = `共 ${currentBookings.length} 筆記錄`;
   tbody.innerHTML = '';
+
+  // 💡 1. 核心資安保護：如果未登入 Google，不顯示任何實際預約資料，展示高質感鎖定提示
+  if (!currentUser) {
+    if (countBadge) countBadge.textContent = `共 0 筆記錄`;
+    if (emptyMsg) {
+      emptyMsg.classList.remove('hidden');
+      emptyMsg.innerHTML = `
+        <div class="py-12 text-center">
+          <i class="fa-solid fa-lock text-4xl mb-3 text-teal-600/60 animate-pulse"></i>
+          <p class="text-sm font-extrabold text-slate-600">此數據涉及學校內部資訊</p>
+          <p class="text-xs text-slate-400 font-semibold mt-1">請先登入您的學校 Google 帳號，以查看當日借用清單。</p>
+        </div>
+      `;
+    }
+    return;
+  }
+
+  // 💡 2. 已登入狀態：還原標準的「暫無記錄」HTML 骨架
+  if (emptyMsg) {
+    emptyMsg.innerHTML = `
+      <i class="fa-solid fa-calendar-xmark text-4xl mb-3 text-slate-300"></i>
+      <p class="text-sm font-semibold">本日該時段暫無任何借用記錄</p>
+    `;
+  }
+
+  countBadge.textContent = `共 ${currentBookings.length} 筆記錄`;
 
   if (currentBookings.length === 0) {
     if (emptyMsg) emptyMsg.classList.remove('hidden');
@@ -774,7 +814,7 @@ function renderTable() {
     const canDelete = isCurrentUserAdmin || isOwner;
     const isWaiting = (item.remarks && item.remarks.includes('[候補]')) || item.status === 'waiting';
 
-    // 💡 1. 原有的候補橘色標籤（已換行）
+    // 💡 1. 候補橘色標籤（已換行）
     let waitingBadgeHTML = '';
     if (isWaiting) {
       const key = `${item.lesson}_${item.device_type}`;

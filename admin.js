@@ -157,6 +157,24 @@ async function loadAdminBookings() {
 
     // 💡 1. 檢查這筆預約是否為「候補成功」
     const isPromoted = item.remarks && item.remarks.includes('[候補成功]');
+      // 💡 1. 檢查用途需求標籤 (basic: 基礎上網 / interactive: 互動教學)
+    let usageBadge = '';
+    if (item.usage_type === 'basic') {
+      usageBadge = `
+        <span class="block mt-1 w-fit px-1.5 py-0.5 bg-slate-100 text-slate-700 text-[10px] rounded font-bold border border-slate-300">
+          <i class="fa-solid fa-globe text-slate-500 mr-0.5"></i> 基礎上網 (可派一般機)
+        </span>
+      `;
+    } else {
+      usageBadge = `
+        <span class="block mt-1 w-fit px-1.5 py-0.5 bg-indigo-50 text-indigo-700 text-[10px] rounded font-bold border border-indigo-200">
+          <i class="fa-solid fa-bolt text-indigo-500 mr-0.5"></i> 互動教學 (優先配高階機)
+        </span>
+      `;
+    }
+
+    // 💡 2. 檢查這筆預約是否為「候補成功」
+    const isPromoted = item.remarks && item.remarks.includes('[候補成功]');
     let promotedBadgeHTML = '';
     if (isPromoted) {
       promotedBadgeHTML = `
@@ -166,7 +184,7 @@ async function loadAdminBookings() {
       `;
     }
 
-    // 💡 2. 過濾備註中的 [候補成功] 和 [候補] 技術性文字，保持介面最乾淨
+    // 💡 3. 過濾備註中的 [候補成功] 和 [候補] 技術性文字，保持介面最乾淨
     let cleanRemarksDisplay = item.remarks || '';
     cleanRemarksDisplay = cleanRemarksDisplay.replace('[候補成功]', '').replace('[候補]', '').trim();
     if (!cleanRemarksDisplay) {
@@ -178,11 +196,12 @@ async function loadAdminBookings() {
       <td class="py-3 px-4 font-semibold text-indigo-700">${item.teacher_name}</td>
       <td class="py-3 px-4 font-bold">
         ${item.device_type} × ${item.quantity}
-        ${promotedBadgeHTML} <!-- 💡 在設備下方顯示候補遞補徽章 -->
+        ${usageBadge} <!-- 👈 這裡加上用途標籤，管理員即可一眼辨識 -->
+        ${promotedBadgeHTML}
       </td>
       <td class="py-3 px-4">${item.class} · ${item.subject} (${item.room})</td>
       <td class="py-3 px-4 text-slate-400 font-mono text-[11px]">${item.user_email || '無記錄'}</td>
-      <td class="py-3 px-4 text-slate-600 font-medium text-xs max-w-[150px] truncate" title="${item.remarks || ''}">${cleanRemarksDisplay}</td> <!-- 💡 新增：備註 TD 欄位 -->
+      <td class="py-3 px-4 text-slate-600 font-medium text-xs max-w-[150px] truncate" title="${item.remarks || ''}">${cleanRemarksDisplay}</td>
       <td class="py-3 px-4">${statusBadge}</td>
       <td class="py-3 px-4 text-center space-x-1">
         <button onclick="updateBookingStatus('${item.id}', 'borrowed')" class="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded font-medium transition" title="確認借出（候補扶正）">
@@ -199,6 +218,7 @@ async function loadAdminBookings() {
         </button>
       </td>
     `;
+
     tbody.appendChild(tr);
   });
 }

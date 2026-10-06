@@ -956,7 +956,7 @@ window.handleFormSubmit = async function(event) {
     submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 正在儲存...';
   }
 
-  const date = document.getElementById('selectDate').value;
+   const date = document.getElementById('selectDate').value;
   const lesson = parseInt(document.getElementById('lessonSelect').value);
   const teacher_name = document.getElementById('teacherSelect').value;
   const device_type = document.getElementById('deviceType').value;
@@ -965,6 +965,23 @@ window.handleFormSubmit = async function(event) {
   const subject = document.getElementById('subject').value;
   const room = document.getElementById('room').value;
   const remarks = document.getElementById('remarks').value.trim();
+
+  // 💡 1. 抓取用途選項數值
+  const usageTypeEl = document.getElementById('usageType');
+  const usage_type = usageTypeEl ? usageTypeEl.value : 'interactive';
+
+  // 💡 2. 必填防呆提示
+  if (!usage_type) {
+    alert('請選擇教學用途需求！');
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = isCurrentUserAdmin 
+        ? '<i class="fa-solid fa-user-shield mr-1.5"></i> 確認提交借用登記 (管理員代登記)' 
+        : '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
+    }
+    return;
+  }
+
 
   if (!teacher_name) {
     alert('請先選擇借用老師！');
@@ -1021,7 +1038,7 @@ window.handleFormSubmit = async function(event) {
     }
   }
 
-  if (_supabase) {
+    if (_supabase) {
     const bookingStatus = isWaiting ? 'waiting' : 'pending';
     const { error } = await _supabase.from('bookings').insert([{
       date, 
@@ -1032,10 +1049,12 @@ window.handleFormSubmit = async function(event) {
       class: className, 
       subject, 
       room, 
+      usage_type, // 👈 儲存用途需求到 Supabase 的 usage_type 欄位
       remarks: isWaiting ? `[候補] ${remarks}`.trim() : remarks, 
       status: bookingStatus, 
       user_email: currentUser.email
     }]);
+
 
     if (error) {
       alert('登記失敗：' + error.message);

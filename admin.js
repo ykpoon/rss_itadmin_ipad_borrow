@@ -27,7 +27,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.error("後台認證初始化失敗:", err);
   }
 
-  // 2. 💡 獨立控制動畫：保證在剛好 1.5 秒 (1500ms) 後淡出遮罩，絕對不卡死！
+  // 2. 💡 獨立控制動畫：保證在剛好 1.5 秒 (1500ms) 後淡出遮罩
   setTimeout(() => {
     const loader = document.getElementById('app-loader');
     if (loader) {
@@ -73,7 +73,6 @@ async function verifyAdminAuth() {
     if (accessDeniedBlock) accessDeniedBlock.classList.add('hidden');
     if (adminMainContent) adminMainContent.classList.remove('hidden');
 
-    // 💡 呼叫下方宣告的標準函數
     loadAdminBookings();
     loadAdminTeachers();
     loadAdminResources();
@@ -120,7 +119,6 @@ function switchTab(tabId) {
 }
 
 // ================= 3. 借還審核控制 =================
-// ================= admin.js 中的 loadAdminBookings 函數 (已修正：新增備註欄與候補成功徽章) =================
 async function loadAdminBookings() {
   const dateInput = document.getElementById('adminQueryDate');
   if (!dateInput) return;
@@ -155,9 +153,7 @@ async function loadAdminBookings() {
     if (item.status === 'missed') statusBadge = '<span class="px-2 py-0.5 bg-rose-100 text-rose-800 rounded font-semibold">欠取機</span>';
     if (item.status === 'waiting') statusBadge = '<span class="px-2 py-0.5 bg-yellow-400 text-yellow-950 rounded font-bold animate-pulse">候補中 (Wait)</span>';
 
-    // 💡 1. 檢查這筆預約是否為「候補成功」
-    const isPromoted = item.remarks && item.remarks.includes('[候補成功]');
-      // 💡 1. 檢查用途需求標籤 (basic: 基礎上網 / interactive: 互動教學)
+    // 💡 1. 檢查用途需求標籤 (basic: 基礎上網 / interactive: 互動教學)
     let usageBadge = '';
     if (item.usage_type === 'basic') {
       usageBadge = `
@@ -196,7 +192,7 @@ async function loadAdminBookings() {
       <td class="py-3 px-4 font-semibold text-indigo-700">${item.teacher_name}</td>
       <td class="py-3 px-4 font-bold">
         ${item.device_type} × ${item.quantity}
-        ${usageBadge} <!-- 👈 這裡加上用途標籤，管理員即可一眼辨識 -->
+        ${usageBadge}
         ${promotedBadgeHTML}
       </td>
       <td class="py-3 px-4">${item.class} · ${item.subject} (${item.room})</td>
@@ -218,11 +214,9 @@ async function loadAdminBookings() {
         </button>
       </td>
     `;
-
     tbody.appendChild(tr);
   });
 }
-
 
 function updateStatusCounters(list) {
   const pendingEl = document.getElementById('countPending');
@@ -244,15 +238,14 @@ async function updateBookingStatus(bookingId, status) {
   loadAdminBookings();
 }
 
-// 💡 🟢 新增：精算 2 個工作天的輔助函數（自動跳過星期六、星期日）
 function getSuspendedUntilDate(startDate = new Date()) {
   let d = new Date(startDate);
   let workingDaysCount = 0;
   while (workingDaysCount < 2) {
     d.setDate(d.getDate() + 1);
-    let day = d.getDay(); // 0 是星期日，6 是星期六
+    let day = d.getDay();
     if (day !== 0 && day !== 6) {
-      workingDaysCount++; // 只有星期一至五才計入工作天
+      workingDaysCount++;
     }
   }
   const y = d.getFullYear();
@@ -261,37 +254,16 @@ function getSuspendedUntilDate(startDate = new Date()) {
   return `${y}-${m}-${dVal}`;
 }
 
-// ================= 💡 新增：計算 2 個工作天後的日期作為停借截止日期 (自動跳過星期六、星期日) =================
-function getSuspendedUntilDate(startDate = new Date()) {
-  let d = new Date(startDate);
-  let workingDaysCount = 0;
-  while (workingDaysCount < 2) {
-    d.setDate(d.getDate() + 1);
-    let day = d.getDay(); // 0 是星期日，6 是星期六
-    if (day !== 0 && day !== 6) {
-      workingDaysCount++; // 只有星期一至星期五才計入停借工作天
-    }
-  }
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const dVal = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${dVal}`;
-}
-
-// ================= 💡 新增：統一的「刪除預約並自動遞補/分流拆單」核心邏輯 =================
 async function deleteBookingWithPromotion(booking) {
-  // 1. 執行刪除
   const { error: deleteErr } = await _supabase.from('bookings').delete().eq('id', booking.id);
   if (deleteErr) throw deleteErr;
 
-  // 2. 如果被刪除的原本不是候補（即釋放了真實庫存），則啟動「自動遞補與拆單」邏輯
   if (booking.status !== 'waiting') {
     let releasedQty = booking.quantity;
     const bookingDate = booking.date;
     const lesson = booking.lesson;
     const deviceType = booking.device_type;
 
-    // 搜尋當天該節該設備的候補名單 (按排隊先後順序優先)
     const { data: waitingList, error: waitErr } = await _supabase
       .from('bookings')
       .select('*')
@@ -308,7 +280,6 @@ async function deleteBookingWithPromotion(booking) {
         if (releasedQty <= 0) break;
 
         if (waiter.quantity <= releasedQty) {
-          // 情況 A：庫存充足 -> 直接全額補上 (扶正)
           releasedQty -= waiter.quantity;
           const cleanedRemarks = (waiter.remarks || '').replace('[候補]', '').trim();
           const promotedRemarks = `[候補成功] ${cleanedRemarks}`.trim();
@@ -319,7 +290,6 @@ async function deleteBookingWithPromotion(booking) {
               .eq('id', waiter.id)
           );
         } else {
-          // 情況 B：庫存不足 -> 智能拆單
           const partQty = releasedQty;
           const remainQty = waiter.quantity - partQty;
           releasedQty = 0;
@@ -359,12 +329,10 @@ async function deleteBookingWithPromotion(booking) {
   }
 }
 
-// ================= admin.js 中的 markAsMissed 函數 (已修正：自動刪除停借期間內的所有預約，並自動遞補候補) =================
 async function markAsMissed(bookingId, teacherName) {
   if (!confirm(`確定要將 ${teacherName} 的此筆記錄標記為「欠取機」嗎？\n系統將自動為該老師累加 1 次欠取次數！`)) return;
 
   try {
-    // 1. 先把當前這筆記錄標記為 missed
     await _supabase.from('bookings').update({ status: 'missed' }).eq('id', bookingId);
 
     const { data: teacher } = await _supabase.from('teachers').select('missed_count').eq('name', teacherName).single();
@@ -376,30 +344,26 @@ async function markAsMissed(bookingId, teacherName) {
       let deletedNames = [];
 
       if (autoSuspend) {
-        // 1. 計算 2 個工作天後的停借截止日期 (跳過六、日)
         suspendedUntilDate = getSuspendedUntilDate(new Date());
 
-        // 2. 💡 核心修正：自動尋找該老師在【停借期間內】（即今天至停借截止日）的所有已預約借用單
         const todayStr = getTodayString();
         const { data: suspendedPeriodBookings } = await _supabase
           .from('bookings')
           .select('*')
           .eq('teacher_name', teacherName)
           .gte('date', todayStr)
-          .lte('date', suspendedUntilDate) // 👈 限制在停借截止日（含）之前
+          .lte('date', suspendedUntilDate)
           .order('date', { ascending: true })
           .order('lesson', { ascending: true });
 
         if (suspendedPeriodBookings && suspendedPeriodBookings.length > 0) {
           for (let fb of suspendedPeriodBookings) {
-            // 使用自動遞補邏輯：刪除該預約，並自動把設備分派給後面排隊候補的老師！
             await deleteBookingWithPromotion(fb);
             deletedNames.push(`${fb.date} (${LESSON_NAMES[fb.lesson]} - ${fb.device_type} x ${fb.quantity}部)`);
           }
         }
       }
 
-      // 3. 儲存最新狀態（停借狀態與截止日期）至 teachers 表
       await _supabase
         .from('teachers')
         .update({ 
@@ -409,7 +373,6 @@ async function markAsMissed(bookingId, teacherName) {
         })
         .eq('name', teacherName);
 
-      // 4. 組合提示訊息彈窗告知管理員
       let baseMsg = `已成功將 ${teacherName} 老師標記為欠取！累計次數更新為 ${newCount} 次。`;
       if (autoSuspend) {
         baseMsg += `\n\n⚠️ 該老師已累計欠取 2 次，系統已自動暫停其借用權限 2 個工作天（停借至 ${suspendedUntilDate}，即下個工作天方可借用）！`;
@@ -431,10 +394,8 @@ async function markAsMissed(bookingId, teacherName) {
   }
 }
 
-
-// ================= 管理員手動強制刪除預約 =================
 async function deleteBookingAdmin(id) {
-  if (!confirm('管理員確定要強制刪除此借用記錄嗎？\\n釋出的庫存將優先自動分派給當天同課節候補的同事。')) return;
+  if (!confirm('管理員確定要強制刪除此借用記錄嗎？\n釋出的庫存將優先自動分派給當天同課節候補的同事。')) return;
   if (!_supabase) return;
 
   try {
@@ -459,9 +420,7 @@ async function deleteBookingAdmin(id) {
   }
 }
 
-
 // ================= 4. 教師欠取與黑名單管理 =================
-// ================= admin.js 中的 loadAdminTeachers 函數 (已優化：預覽教師電郵) =================
 async function loadAdminTeachers() {
   const { data } = await _supabase.from('teachers').select('*');
   const tbody = document.getElementById('adminTeachersTable');
@@ -469,7 +428,7 @@ async function loadAdminTeachers() {
   tbody.innerHTML = '';
   if (!data) return;
 
- data.sort((a, b) => a.name.localeCompare(b.name, 'en'));
+  data.sort((a, b) => a.name.localeCompare(b.name, 'en'));
 
   const suspendedTotal = data.filter(t => t.is_suspended).length;
   const suspendedCountEl = document.getElementById('suspendedCount');
@@ -481,7 +440,6 @@ async function loadAdminTeachers() {
     tr.innerHTML = `
       <td class="py-2.5 px-3">
         <span class="font-semibold text-slate-800">${t.name}</span>
-        <!-- 💡 新增：在後台名字下方預覽電郵 -->
         <span class="block text-[10px] text-slate-400 font-mono mt-0.5">${t.email || '未設定電郵'}</span>
       </td>
       <td class="py-2.5 px-3 font-bold ${t.missed_count > 0 ? 'text-rose-600' : 'text-slate-500'}">${t.missed_count || 0} 次</td>
@@ -520,11 +478,10 @@ async function resetMissedCount(teacherName) {
   loadAdminTeachers();
 }
 
-// ================= admin.js 中的 addNewTeacher 函數 (已優化：同時儲存教師電郵) =================
 async function addNewTeacher(event) {
   event.preventDefault();
   const name = document.getElementById('newTeacherName').value.trim();
-  const email = document.getElementById('newTeacherEmail').value.trim(); // 💡 讀取電郵
+  const email = document.getElementById('newTeacherEmail').value.trim();
   if (!name || !email) return;
 
   const { error } = await _supabase.from('teachers').insert([{ name, email, missed_count: 0, is_suspended: false }]);
@@ -664,7 +621,7 @@ async function deleteDailyAdjustment(id) {
   loadDailyAdjustments();
 }
 
-// ================= 7. 💡 統一將函數掛載給 Window，供 HTML 內 onclick 按鈕呼叫 =================
+// ================= 7. 統一將函數掛載給 Window =================
 window.loginWithGoogle = loginWithGoogle;
 window.logout = logout;
 window.switchTab = switchTab;

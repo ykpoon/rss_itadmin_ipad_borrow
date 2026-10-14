@@ -117,7 +117,8 @@
    const common={teacher_name:el('teacherSelect').value,device_type:el('deviceType').value,quantity:Number(el('quantity').value),class:el('className').value,subject:el('subject').value,room:el('room').value,usage_type:el('usageType').value,remarks:el('remarks').value};
    const rows=await submitEntries(selections.map(s=>({...common,...s}))),waiting=rows.filter(b=>b.status==='waiting').length;
    const message=`已建立 ${rows.length} 筆借用（待取機 ${rows.length-waiting}，候補 ${waiting}）。`;
-   el('batchResult').textContent=message;alert(message);
+   el('batchResult').textContent=message;
+   if(window.bookingFeedback)window.bookingFeedback.show({title:waiting===rows.length?'已加入候補':'借用登記成功！',message,kind:waiting===rows.length?'waiting':'success'});else alert(message);
    if(isBatch){previewBatch.splice(0);previewRenderBatch()}
    await fetchAndRender();await fetchMonthlyData();window.previewRefreshPersonal?.();
   }catch(e){const message='提交未完成確認：'+e.message+'。如是網絡中斷，請保留相同內容再試；亦可先到總表核對。';el('batchResult').textContent=message;alert(message)}

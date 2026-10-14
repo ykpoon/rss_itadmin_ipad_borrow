@@ -1,0 +1,41 @@
+/* Borrowing table and success feedback; no data or queue behavior changes. */
+.booking-table-wrap{overflow:auto;border:1px solid #e5eeee;border-radius:14px;background:#fff}
+.booking-table{width:100%;min-width:650px;table-layout:fixed;border-collapse:separate;border-spacing:0;color:#334155;font-size:14px}
+.booking-table thead th{background:#f1f8f7;color:#365754;font-size:12px;font-weight:750;letter-spacing:.03em;padding:13px 12px;border-bottom:1px solid #deebe8;white-space:nowrap}
+.booking-table th:nth-child(1){width:11%}.booking-table th:nth-child(2){width:24%}.booking-table th:nth-child(3){width:24%}.booking-table th:nth-child(4){width:15%}.booking-table th:nth-child(5){width:12%}.booking-table th:nth-child(6){width:14%}
+.booking-table td{padding:16px 12px;vertical-align:middle;border-bottom:1px solid #edf2f1;line-height:1.55}
+.booking-table tr:last-child td{border-bottom:0}.booking-table tbody tr{transition:background-color .18s ease}
+.booking-table tbody tr:nth-child(even){background:#fafcfc}.booking-table tbody tr:hover{background:#f0f9f7}
+.booking-table .booking-lesson{white-space:nowrap;font-weight:750;color:#0f766e}
+.booking-teacher{font-weight:650;color:#334155;overflow-wrap:anywhere}.booking-secondary{display:block;color:#7a8c94;font-size:12px;font-weight:450;margin-top:3px;overflow-wrap:anywhere}
+.booking-class{display:block;font-weight:750;color:#334155}.booking-room{white-space:nowrap;font-size:13px}
+.booking-device-line{display:flex;align-items:center;gap:7px;flex-wrap:nowrap;white-space:nowrap;margin-bottom:7px}
+.booking-device{font-size:11px;font-weight:750;padding:2px 7px;border-radius:6px;background:#e5f5f1;color:#147966}
+.booking-device--mobile{background:#eeeafd;color:#6f51ad}.booking-quantity{font-weight:750;font-size:17px;font-variant-numeric:tabular-nums;color:#243f3b}.booking-unit{font-size:11px;font-weight:450;color:#879a98}
+.booking-state{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:999px;font-size:11px;font-weight:650;white-space:nowrap;background:#f1f5f9;color:#64748b}
+.booking-state--pending{background:#fff4d9;color:#9a6b17}.booking-state--borrowed{background:#e9f1ff;color:#3566a1}.booking-state--returned{background:#e5f6ee;color:#348467}.booking-state--waiting{background:#fff0df;color:#a26529}.booking-state--missed{background:#fcecef;color:#b05465}
+.booking-success{display:flex;align-items:center;gap:5px;width:fit-content;margin-top:7px;color:#10856e;font-size:11px;font-weight:750;white-space:nowrap}
+.booking-success-icon{display:inline-grid;place-items:center;border-radius:50%;width:16px;height:16px;background:#d9f6e9;color:#168665;font-size:11px}
+.booking-success--promoted{color:#08825f}.booking-row--promoted td:first-child{box-shadow:inset 3px 0 #43b38f}
+.booking-success-animate .booking-success-icon{animation:booking-check-pop .55s cubic-bezier(.2,.8,.25,1.3) both}
+.booking-success-animate{animation:booking-success-breathe 1.1s ease-in-out 3}
+.booking-actions{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-start}.booking-action{border:1px solid #cce6df;border-radius:8px;background:#f0faf6;color:#177c68;padding:5px 11px;font-size:12px;font-weight:650;line-height:1.5;white-space:nowrap;cursor:pointer;transition:background .16s,border-color .16s,box-shadow .16s;margin:2px}
+.booking-actions .booking-action{margin:0;min-width:54px}.booking-action:hover{background:#e0f4ec;border-color:#96cdbb}.booking-action:focus-visible{outline:3px solid #9cd5c8;outline-offset:2px}
+.booking-action--cancel{background:#fff;border-color:#e3e8ed;color:#8c6470}.booking-action--cancel:hover{background:#fff2f4;border-color:#e4bbc6}.booking-action--warning{background:#fff7e9;border-color:#ebd8b1;color:#966d26}
+.booking-table .booking-readonly{font-size:12px;color:#a0adb3}.booking-empty{padding:60px 20px!important;text-align:center;color:#91a3a6;font-size:13px}
+.booking-notice{position:fixed;right:24px;bottom:24px;z-index:9999;width:min(360px,calc(100vw - 32px));display:flex;gap:15px;align-items:flex-start;background:#fff;border:1px solid #cfeade;border-radius:20px;padding:22px 38px 22px 20px;box-shadow:0 14px 44px #153f3222;animation:booking-notice-in .4s cubic-bezier(.2,.8,.2,1) both;overflow:hidden}
+.booking-notice::after{content:'';position:absolute;left:0;bottom:0;width:100%;height:3px;background:#5bb598;transform-origin:left;animation:booking-notice-timer 7s linear forwards}
+.booking-notice-icon{flex:none;width:48px;height:48px;display:grid;place-items:center;border-radius:50%;background:#e5f7ee;color:#188969;animation:booking-check-pop .55s cubic-bezier(.2,.8,.25,1.3) both}
+.booking-notice-icon svg{width:28px;height:28px}.booking-notice-icon path{stroke-dasharray:40;stroke-dashoffset:40;animation:booking-draw-check .45s .18s ease forwards}
+.booking-notice-title{font-size:17px;font-weight:800;color:#177a61;line-height:1.4;margin:0 0 6px}.booking-notice-message{font-size:13px;line-height:1.65;color:#6c8180;margin:0;overflow-wrap:anywhere}
+.booking-notice-close{position:absolute;right:10px;top:10px;padding:2px 8px;border:0;border-radius:8px;background:transparent;color:#7c9390;font-size:21px;cursor:pointer}.booking-notice-close:hover{background:#eef6f3}.booking-notice-close:focus-visible{outline:2px solid #6eaa97}
+.booking-notice--waiting{border-color:#ecdab8}.booking-notice--waiting .booking-notice-icon{background:#fff4df;color:#ad7a30}.booking-notice--waiting .booking-notice-title{color:#9c6b23}.booking-notice--waiting::after{background:#d7a658}
+.booking-notice--exit{animation:booking-notice-out .18s ease forwards}
+@keyframes booking-check-pop{0%{transform:scale(.55);opacity:0}70%{transform:scale(1.12);opacity:1}100%{transform:scale(1);opacity:1}}
+@keyframes booking-success-breathe{0%,100%{transform:translateY(0);opacity:1}50%{transform:translateY(-2px);opacity:.75}}
+@keyframes booking-notice-in{from{transform:translateY(18px);opacity:0}to{transform:translateY(0);opacity:1}}
+@keyframes booking-notice-out{to{transform:translateY(12px);opacity:0}}
+@keyframes booking-notice-timer{to{transform:scaleX(0)}}
+@keyframes booking-draw-check{to{stroke-dashoffset:0}}
+@media(max-width:600px){.booking-notice{right:16px;bottom:16px;padding:18px 36px 18px 18px}.booking-notice-title{font-size:16px}}
+@media(prefers-reduced-motion:reduce){.booking-success-animate,.booking-success-animate .booking-success-icon,.booking-notice,.booking-notice-icon,.booking-notice-icon path,.booking-notice::after{animation:none!important;transform:none!important}.booking-notice-icon path{stroke-dashoffset:0}.booking-notice--exit{opacity:0}}

@@ -1,9 +1,11 @@
 // Render untrusted database fields as text; callbacks receive values through closures.
 (function(){
  const td=(row,text)=>{const cell=document.createElement('td');cell.className='py-3 px-3';cell.textContent=text??'—';row.append(cell);return cell};
- const button=(cell,label,fn,title)=>{const b=document.createElement('button');b.type='button';b.className='px-2 py-1 rounded border text-teal-700 bg-teal-50 m-1';b.textContent=label;b.title=title||label;b.addEventListener('click',fn);cell.append(b);return b};
+ const button=(cell,label,fn,title)=>{const b=document.createElement('button');b.type='button';b.className='booking-action'+(['取消','刪除'].includes(label)?' booking-action--cancel':label==='欠取'?' booking-action--warning':'');b.textContent=label;b.title=title||label;b.addEventListener('click',fn);cell.append(b);return b};
  const statusLabels={pending:'待取機',borrowed:'已取機',returned:'已歸還',missed:'欠取機',waiting:'候補中'};
- const badge=(cell,text,waiting=false)=>{const b=document.createElement('span');b.className='block mt-1 text-xs font-bold '+(waiting?'text-amber-700':'text-teal-700');b.textContent=text;cell.append(b)};
+ const success=(cell,promoted,elapsed=4000)=>{const b=document.createElement('span');b.className='booking-success'+(promoted?' booking-success--promoted':'')+(elapsed<3300?' booking-success-animate':'');const icon=document.createElement('span');icon.className='booking-success-icon';icon.textContent='✓';icon.setAttribute('aria-hidden','true');if(elapsed<3300){b.style.animationDelay=`-${elapsed/1000}s`;icon.style.animationDelay=`-${elapsed/1000}s`}b.append(icon,document.createTextNode(promoted?'候補成功':'借用成功'));cell.append(b)};
+ const badge=(cell)=>success(cell,true,0);
+ const lastStates=new Map(),highlightSeen=new Map();let renderAccount=null;
  if(document.getElementById('bookingsTableBody')){
   renderTable=()=>{
    const body=document.getElementById('bookingsTableBody'),empty=document.getElementById('emptyMessage');body.replaceChildren();
@@ -12,18 +14,31 @@
    empty.classList.toggle('hidden',list.length>0);empty.textContent=currentUser?'本日暫無借用記錄':'請先登入學校帳號，以查看借用清單。';
    const ownNames=new Set(teachersList.filter(t=>(t.email||'').trim().toLowerCase()===(currentUser?.email||'').trim().toLowerCase()).map(t=>t.name));
    list.sort((a,b)=>(a.status==='waiting')-(b.status==='waiting')||a.lesson-b.lesson||String(a.created_at).localeCompare(String(b.created_at)));
-   const ranks=new Map();for(const item of list){
-    const row=document.createElement('tr');row.dataset.bookingId=item.id;
-    td(row,LESSON_NAMES[item.lesson]);td(row,item.teacher_name);
-    const device=td(row,`${item.device_type} × ${item.quantity} · ${statusLabels[item.status]||item.status}`);
-    if(item.status==='waiting'){const key=item.lesson+':'+item.device_type;const rank=(ranks.get(key)||0)+1;ranks.set(key,rank);badge(device,`候補順位 ${rank}`,true)}
-    if(String(item.remarks||'').includes('[候補成功]'))badge(device,'🎉 候補成功');
-    td(row,`${item.class} (${item.subject})`);td(row,item.room);const actions=td(row,'');
+   const account=currentUser?.id||currentUser?.email||null;if(account!==renderAccount){lastStates.clear();highlightSeen.clear();renderAccount=account}
+   const ranks=new Map(),promotions=[];for(const item of list){
+    const promoted=String(item.remarks||'').includes('[候補成功]');
+    const row=document.createElement('tr');row.dataset.bookingId=item.id;row.className=promoted&&item.status==='pending'?'booking-row--promoted':'';
+    td(row,LESSON_NAMES[item.lesson]||`第 ${item.lesson} 節`).classList.add('booking-lesson');
+    const teacher=td(row,''),name=document.createElement('span');name.className='booking-teacher';
+    const parts=String(item.teacher_name||'').match(/^(.*?)\s*[（(]([^()（）]+)[）)]\s*$/);name.textContent=parts?parts[1].trim():item.teacher_name;teacher.append(name);
+    if(parts){const translated=document.createElement('span');translated.className='booking-secondary';translated.textContent=parts[2];teacher.append(translated)}
+    const device=td(row,''),line=document.createElement('div'),type=document.createElement('span'),qty=document.createElement('span'),unit=document.createElement('span');
+    line.className='booking-device-line';type.className='booking-device'+(item.device_type==='Mobile'?' booking-device--mobile':'');type.textContent=item.device_type;
+    qty.className='booking-quantity';qty.textContent=`× ${item.quantity}`;unit.className='booking-unit';unit.textContent='部';line.append(type,qty,unit);device.append(line);
+    const state=document.createElement('span');state.className='booking-state booking-state--'+(Object.prototype.hasOwnProperty.call(statusLabels,item.status)?item.status:'unknown');state.textContent=statusLabels[item.status]||item.status;
+    if(item.status==='waiting'){const key=item.lesson+':'+item.device_type;const rank=(ranks.get(key)||0)+1;ranks.set(key,rank);state.textContent=`候補順位 ${rank}`}
+    device.append(state);
+    if(item.status==='pending'||promoted){const key=item.id+':'+item.status+':'+promoted;if(!highlightSeen.has(key))highlightSeen.set(key,Date.now());success(device,promoted,item.status==='pending'?Date.now()-highlightSeen.get(key):4000)}
+    if(promoted&&item.status==='pending'&&lastStates.get(item.id)==='waiting'&&(isCurrentUserAdmin||ownNames.has(item.teacher_name)))promotions.push(item);
+    lastStates.set(item.id,item.status);
+    const classCell=td(row,''),className=document.createElement('span'),subject=document.createElement('span');className.className='booking-class';className.textContent=item.class;subject.className='booking-secondary';subject.textContent=item.subject;classCell.append(className,subject);
+    td(row,item.room).classList.add('booking-room');const actionCell=td(row,''),actions=document.createElement('div');actions.className='booking-actions';actionCell.append(actions);
     if(isCurrentUserAdmin||ownNames.has(item.teacher_name)){
      if(['pending','waiting'].includes(item.status))button(actions,'修改',()=>window.editQuantity(item.id,item.device_type,item.lesson,item.quantity,item.teacher_name),'修改借用數量');
      if(isCurrentUserAdmin||['pending','waiting'].includes(item.status))button(actions,'取消',()=>window.deleteBooking(item.id,item.teacher_name),'取消登記');
-    }else actions.textContent='—';body.append(row);
+    }else{actions.textContent='—';actions.classList.add('booking-readonly')}body.append(row);
    }
+   if(promotions.length)window.bookingFeedback?.show({title:'候補成功！',message:promotions.map(b=>`${b.teacher_name} · 第 ${b.lesson} 節 ${b.device_type} ${b.quantity} 部已成功補上。`).join('\n')});
   };
   renderFrontTeachersTable=()=>{
    const body=document.getElementById('frontTeachersTableBody');if(!body)return;body.replaceChildren();

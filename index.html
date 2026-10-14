@@ -12,6 +12,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
   <!-- Supabase JS Client v2 -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3"></script>
+  <link rel="stylesheet" href="booking-ui.css">
   <style>
     body { 
       font-family: 'Inter', 'Noto Sans TC', -apple-system, sans-serif; 
@@ -387,9 +388,9 @@
             <span id="recordCount" class="text-xs bg-slate-100 text-slate-600 font-bold px-3 py-1.5 rounded-full">共 0 筆記錄</span>
           </div>
 
-          <div class="overflow-y-auto flex-1 scrollbar-thin">
+          <div class="overflow-y-auto flex-1 scrollbar-thin booking-table-wrap">
             <!-- 💡 表格字型放大至 text-sm -->
-            <table class="w-full text-left text-sm text-slate-600">
+            <table class="w-full text-left text-sm text-slate-600 booking-table">
               <thead class="bg-slate-50/80 text-slate-700 font-bold sticky top-0 border-b border-slate-200">
                 <tr>
                   <th class="py-3 px-3">課節</th>
@@ -489,6 +490,7 @@
   <!-- 引入前台專屬 JS 邏輯檔 -->
   <script src="index.js"></script>
   <script src="batch-ui.js"></script>
+  <script src="booking-feedback.js"></script>
   <script src="booking-enhancements.js"></script>
   <script src="safe-render.js"></script>
   <script src="personal-summary.js"></script>

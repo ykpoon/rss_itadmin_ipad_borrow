@@ -135,15 +135,20 @@ async function checkAuth() {
     const { data: { session } } = await _supabase.auth.getSession();
     await updateAuthUI(session?.user || null);
 
-    return new Promise((resolve) => {
-      _supabase.auth.onAuthStateChange(async (_event, session) => {
-        await updateAuthUI(session?.user || null);
-        await loadTeachers(); // 登入變更時，立即重算教師綁定
-        renderTable(); 
-        resolve();
-      });
-      resolve();
+    _supabase.auth.onAuthStateChange((_event, session) => {
+      setTimeout(async()=>{
+        await updateAuthUI(session?.user || null); await loadTeachers();
+        await fetchAndRender(); await fetchMonthlyData(); renderTable();
+        if(_event==='SIGNED_OUT') window.previewHideReminder?.();
+        if(_event==='SIGNED_IN' && session?.user && sessionStorage.getItem('ipad-preview-login-reminder')==='1') {
+          sessionStorage.removeItem('ipad-preview-login-reminder'); window.previewShowReminder?.(session.user);
+        }
+      },0);
     });
+    if(session?.user && sessionStorage.getItem('ipad-preview-login-reminder')==='1') {
+      sessionStorage.removeItem('ipad-preview-login-reminder'); setTimeout(()=>window.previewShowReminder?.(session.user),80);
+    }
+
   } catch (e) {
     console.error("Auth 初始化錯誤:", e);
   }
@@ -157,7 +162,9 @@ async function updateAuthUI(user) {
   const adminPortalBtn = document.getElementById('adminPortalBtn');
   const loginAlert = document.getElementById('loginRequiredAlert');
 
+  if(currentUser?.id!==user?.id){teachersList=[];currentBookings=[];monthlyBookings=[];}
   currentUser = user;
+  window.previewPersonalAuthChanged?.();
 
   if (user) {
     if (loginBtn) loginBtn.classList.add('hidden');
@@ -183,6 +190,7 @@ async function updateAuthUI(user) {
 }
 
 window.loginWithGoogle = async function() {
+  sessionStorage.setItem('ipad-preview-login-reminder','1');
   try {
     const { error } = await _supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -418,6 +426,7 @@ function setupRealtime() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
       fetchAndRender();
       fetchMonthlyData();
+      if(!document.getElementById('personal-section')?.classList.contains('hidden')) window.previewRefreshPersonal?.();
     })
     .subscribe();
 
@@ -527,6 +536,7 @@ window.updateRemainingPreview = function() {
 window.switchFrontTab = function(sectionId) {
   document.querySelectorAll('.tab-section-content').forEach(el => el.classList.add('hidden'));
   document.querySelectorAll('.tab-btn').forEach(el => {
+    el.classList.remove('active');
     el.classList.remove('border-indigo-600', 'text-indigo-600', 'font-bold');
     el.classList.add('border-transparent', 'text-slate-500');
   });
@@ -536,9 +546,11 @@ window.switchFrontTab = function(sectionId) {
 
   const activeBtn = document.getElementById(`tabBtn-${sectionId.replace('-section', '')}`);
   if (activeBtn) {
+    activeBtn.classList.add('active');
     activeBtn.classList.add('border-indigo-600', 'text-indigo-600', 'font-bold');
     activeBtn.classList.remove('border-transparent', 'text-slate-500');
   }
+  if(sectionId==='personal-section') window.previewRefreshPersonal?.();
 };
 
 // ================= 6. 視覺化月曆邏輯 =================
@@ -899,291 +911,3 @@ function renderTable() {
     tbody.appendChild(tr);
   });
 }
-
-window.editQuantity = async function(bookingId, deviceType, lesson, currentQty, teacherName) {
-  if (!currentUser) {
-    alert('請先登入！');
-    return;
-  }
-
-  const input = prompt(`【修改借用數量】\n\n您目前為 ${teacherName} 登記了 ${deviceType} x ${currentQty} 部。\n請輸入您想修改後的新數量：`, currentQty);
-  if (input === null) return;
-
-  const newQty = parseInt(input.trim());
-  if (isNaN(newQty) || newQty <= 0) {
-    alert('❌ 請輸入有效的正整數！');
-    return;
-  }
-
-  if (newQty === currentQty) return;
-
-  const remaining = getRemainingStock(lesson, deviceType);
-  const totalAvailable = remaining + currentQty;
-
-  if (newQty > totalAvailable) {
-    alert(`❌ 修改失敗：\n該節的 ${deviceType} 剩餘庫存不足！\n\n理論上您最大僅可調整至 ${totalAvailable} 部。`);
-    return;
-  }
-
-  if (_supabase) {
-    const { error } = await _supabase
-      .from('bookings')
-      .update({ quantity: newQty })
-      .eq('id', bookingId);
-
-    if (error) {
-      alert('❌ 修改數量失敗：' + error.message);
-    } else {
-      alert(`✅ 數量修改成功！已為 ${teacherName} 將 ${deviceType} 的借用數量調整為 ${newQty} 部。\n\n您的隊列位置已成功保持！`);
-      fetchAndRender();
-    }
-  }
-};
-
-// ================= 8. 提交借用表單 =================
-window.handleFormSubmit = async function(event) {
-  event.preventDefault();
-
-  if (!currentUser) {
-    alert('請先點擊右上角使用學校 Google 帳號登入後再進行借用！');
-    loginWithGoogle();
-    return;
-  }
-
-  const submitBtn = document.getElementById('submitBtn');
-  if (submitBtn) {
-    submitBtn.disabled = true;
-    submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 正在儲存...';
-  }
-
-   const date = document.getElementById('selectDate').value;
-  const lesson = parseInt(document.getElementById('lessonSelect').value);
-  const teacher_name = document.getElementById('teacherSelect').value;
-  const device_type = document.getElementById('deviceType').value;
-  const quantity = parseInt(document.getElementById('quantity').value);
-  const className = document.getElementById('className').value;
-  const subject = document.getElementById('subject').value;
-  const room = document.getElementById('room').value;
-  const remarks = document.getElementById('remarks').value.trim();
-
-  // 💡 1. 抓取用途選項數值
-  const usageTypeEl = document.getElementById('usageType');
-  const usage_type = usageTypeEl ? usageTypeEl.value : 'interactive';
-
-  // 💡 2. 必填防呆提示
-  if (!usage_type) {
-    alert('請選擇教學用途需求！');
-    if (submitBtn) {
-      submitBtn.disabled = false;
-      submitBtn.innerHTML = isCurrentUserAdmin 
-        ? '<i class="fa-solid fa-user-shield mr-1.5"></i> 確認提交借用登記 (管理員代登記)' 
-        : '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
-    }
-    return;
-  }
-
-
-  if (!teacher_name) {
-    alert('請先選擇借用老師！');
-    if (submitBtn) {
-      submitBtn.disabled = false;
-      submitBtn.innerHTML = isCurrentUserAdmin 
-        ? '<i class="fa-solid fa-user-shield mr-1.5"></i> 確認提交借用登記 (管理員代登記)' 
-        : '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
-    }
-    return;
-  }
-
-  const teacherRecord = teachersList.find(t => t.name === teacher_name);
-  let isTeacherCurrentlySuspended = false;
-
-  if (teacherRecord && teacherRecord.is_suspended) {
-    if (teacherRecord.suspended_until) {
-      if (date <= teacherRecord.suspended_until) {
-        isTeacherCurrentlySuspended = true;
-      }
-    } else {
-      isTeacherCurrentlySuspended = true;
-    }
-  }
-
-  // 💡 已修正：如果是管理員代登記，就允許提交，不彈出禁借提示
-  if (isTeacherCurrentlySuspended && !isCurrentUserAdmin) {
-    const until = teacherRecord.suspended_until ? `至 ${teacherRecord.suspended_until}` : '';
-    alert(`❌ 借用失敗：${teacher_name} 老師在 ${date} 當天仍處於停止借用期 (${until})！`);
-    if (submitBtn) {
-      submitBtn.disabled = false;
-      submitBtn.innerHTML = isCurrentUserAdmin 
-        ? '<i class="fa-solid fa-user-shield mr-1.5"></i> 確認提交借用登記 (管理員代登記)' 
-        : '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
-    }
-    return;
-  }
-
-  const remaining = getRemainingStock(lesson, device_type);
-  let isWaiting = false;
-
-  if (quantity > remaining) {
-    const confirmWait = confirm(`⚠️ 該節 ${device_type} 剩餘庫存為 ${remaining} 部（不足 ${quantity} 部）。\n\n您是否要將此預約排入【候補名單 (Waiting List)】？\n若當天有同事未前來取機，將依候補順序為您安排。`);
-    if (confirmWait) {
-      isWaiting = true;
-    } else {
-      if (submitBtn) {
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = isCurrentUserAdmin 
-          ? '<i class="fa-solid fa-user-shield mr-1.5"></i> 確認提交借用登記 (管理員代登記)' 
-          : '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
-      }
-      return;
-    }
-  }
-
-    if (_supabase) {
-    const bookingStatus = isWaiting ? 'waiting' : 'pending';
-    const { error } = await _supabase.from('bookings').insert([{
-      date, 
-      lesson, 
-      teacher_name, 
-      device_type, 
-      quantity, 
-      class: className, 
-      subject, 
-      room, 
-      usage_type, // 👈 儲存用途需求到 Supabase 的 usage_type 欄位
-      remarks: isWaiting ? `[候補] ${remarks}`.trim() : remarks, 
-      status: bookingStatus, 
-      user_email: currentUser.email
-    }]);
-
-
-    if (error) {
-      alert('登記失敗：' + error.message);
-    } else {
-      if (isWaiting) {
-        alert(`📝 已成功為您排入候補！當前狀態為：【候補中】。`);
-      } else {
-        alert(`✅ 借用成功！已為 ${teacher_name} 登記 ${LESSON_NAMES[lesson]} 的 ${device_type} (${quantity} 部)。`);
-      }
-      document.getElementById('bookingForm').reset();
-      fetchAndRender();
-    }
-  }
-
-  if (submitBtn) {
-    submitBtn.disabled = false;
-    submitBtn.innerHTML = isCurrentUserAdmin 
-      ? '<i class="fa-solid fa-user-shield mr-1.5"></i> 確認提交借用登記 (管理員代登記)' 
-      : '<i class="fa-solid fa-paper-plane"></i> 確認提交借用登記';
-  }
-};
-
-// ================= index.js 中的 deleteBooking 函數 =================
-window.deleteBooking = async function(id, teacherName) {
-  if (!currentUser) {
-    alert('請先登入！');
-    return;
-  }
-
-  if (!confirm(`確定要取消 ${teacherName} 的此筆借用記錄嗎？\n釋出的庫存將優先自動分派給當天同課節候補的同事。`)) return;
-  if (!_supabase) return;
-
-  try {
-    const { data: targetBooking, error: fetchErr } = await _supabase
-      .from('bookings')
-      .select('date, lesson, device_type, quantity, status')
-      .eq('id', id)
-      .single();
-
-    if (fetchErr || !targetBooking) {
-      alert('無法取得預約資訊，或預約已被取消。');
-      return;
-    }
-
-    const { error: deleteErr } = await _supabase.from('bookings').delete().eq('id', id);
-    if (deleteErr) {
-      alert('刪除失敗：' + deleteErr.message);
-      return;
-    }
-
-    if (targetBooking.status !== 'waiting') {
-      let releasedQty = targetBooking.quantity;
-      const bookingDate = targetBooking.date;
-      const lesson = targetBooking.lesson;
-      const deviceType = targetBooking.device_type;
-
-      const { data: waitingList, error: waitErr } = await _supabase
-        .from('bookings')
-        .select('*')
-        .eq('date', bookingDate)
-        .eq('lesson', lesson)
-        .eq('device_type', deviceType)
-        .eq('status', 'waiting')
-        .order('created_at', { ascending: true });
-
-      if (!waitErr && waitingList && waitingList.length > 0) {
-        let updatePromises = [];
-        let notifyMessages = [];
-
-        for (let waiter of waitingList) {
-          if (releasedQty <= 0) break;
-
-          if (waiter.quantity <= releasedQty) {
-            releasedQty -= waiter.quantity;
-            const cleanedRemarks = (waiter.remarks || '').replace('[候補]', '').trim();
-            const promotedRemarks = `[候補成功] ${cleanedRemarks}`.trim();
-
-            updatePromises.push(
-              _supabase.from('bookings')
-                .update({ status: 'pending', remarks: promotedRemarks })
-                .eq('id', waiter.id)
-            );
-            notifyMessages.push(`🎉 當天候補第 1 順位 ${waiter.teacher_name} 老師（${waiter.quantity} 部 ${deviceType}）已全額成功補上！`);
-
-          } else {
-            const partQty = releasedQty;
-            const remainQty = waiter.quantity - partQty;
-            releasedQty = 0;
-
-            const cleanedRemarks = (waiter.remarks || '').replace('[候補]', '').trim();
-            const promotedRemarks = `[候補成功] ${cleanedRemarks}`.trim();
-
-            updatePromises.push(
-              _supabase.from('bookings')
-                .update({ quantity: partQty, status: 'pending', remarks: promotedRemarks })
-                .eq('id', waiter.id)
-            );
-
-            updatePromises.push(
-              _supabase.from('bookings').insert([{
-                date: waiter.date,
-                lesson: waiter.lesson,
-                teacher_name: waiter.teacher_name,
-                device_type: waiter.device_type,
-                quantity: remainQty,
-                class: waiter.class,
-                subject: waiter.subject,
-                room: waiter.room,
-                remarks: `[候補] ${waiter.remarks || ''}`.replace('[候補] [候補]', '[候補]').trim(),
-                status: 'waiting',
-                user_email: waiter.user_email,
-                created_at: waiter.created_at
-              }])
-            );
-            notifyMessages.push(`⚖️ 因庫存限制，已為當天 ${waiter.teacher_name} 老師拆單：\n- 成功補上 ${partQty} 部\n- 剩餘 ${remainQty} 部繼續在候補名單中排隊！`);
-          }
-        }
-
-        if (updatePromises.length > 0) {
-          await Promise.all(updatePromises);
-          alert(`✅ 取消預約成功！釋出庫存已自動分派完成：\n\n` + notifyMessages.join('\n\n'));
-        }
-      }
-    }
-
-    fetchAndRender();
-
-  } catch (err) {
-    console.error("取消預約並自動遞補出錯:", err);
-    alert('取消失敗，請稍後再試。');
-  }
-};

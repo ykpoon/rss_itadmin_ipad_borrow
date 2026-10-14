@@ -20,9 +20,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await verifyAdminAuth();
 
     // 🌟 即時監聽 Google OAuth 跳轉完成
-    _supabase.auth.onAuthStateChange(async (event, session) => {
-      await verifyAdminAuth();
-    });
+    _supabase.auth.onAuthStateChange(()=>{setTimeout(()=>verifyAdminAuth(),0)});
   } catch (err) {
     console.error("後台認證初始化失敗:", err);
   }
@@ -233,193 +231,6 @@ function updateStatusCounters(list) {
   if (waitEl) waitEl.textContent = list.filter(i => i.status === 'waiting').length;
 }
 
-async function updateBookingStatus(bookingId, status) {
-  await _supabase.from('bookings').update({ status }).eq('id', bookingId);
-  loadAdminBookings();
-}
-
-function getSuspendedUntilDate(startDate = new Date()) {
-  let d = new Date(startDate);
-  let workingDaysCount = 0;
-  while (workingDaysCount < 2) {
-    d.setDate(d.getDate() + 1);
-    let day = d.getDay();
-    if (day !== 0 && day !== 6) {
-      workingDaysCount++;
-    }
-  }
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const dVal = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${dVal}`;
-}
-
-async function deleteBookingWithPromotion(booking) {
-  const { error: deleteErr } = await _supabase.from('bookings').delete().eq('id', booking.id);
-  if (deleteErr) throw deleteErr;
-
-  if (booking.status !== 'waiting') {
-    let releasedQty = booking.quantity;
-    const bookingDate = booking.date;
-    const lesson = booking.lesson;
-    const deviceType = booking.device_type;
-
-    const { data: waitingList, error: waitErr } = await _supabase
-      .from('bookings')
-      .select('*')
-      .eq('date', bookingDate)
-      .eq('lesson', lesson)
-      .eq('device_type', deviceType)
-      .eq('status', 'waiting')
-      .order('created_at', { ascending: true });
-
-    if (!waitErr && waitingList && waitingList.length > 0) {
-      let updatePromises = [];
-
-      for (let waiter of waitingList) {
-        if (releasedQty <= 0) break;
-
-        if (waiter.quantity <= releasedQty) {
-          releasedQty -= waiter.quantity;
-          const cleanedRemarks = (waiter.remarks || '').replace('[候補]', '').trim();
-          const promotedRemarks = `[候補成功] ${cleanedRemarks}`.trim();
-
-          updatePromises.push(
-            _supabase.from('bookings')
-              .update({ status: 'pending', remarks: promotedRemarks })
-              .eq('id', waiter.id)
-          );
-        } else {
-          const partQty = releasedQty;
-          const remainQty = waiter.quantity - partQty;
-          releasedQty = 0;
-
-          const cleanedRemarks = (waiter.remarks || '').replace('[候補]', '').trim();
-          const promotedRemarks = `[候補成功] ${cleanedRemarks}`.trim();
-
-          updatePromises.push(
-            _supabase.from('bookings')
-              .update({ quantity: partQty, status: 'pending', remarks: promotedRemarks })
-              .eq('id', waiter.id)
-          );
-
-          updatePromises.push(
-            _supabase.from('bookings').insert([{
-              date: waiter.date,
-              lesson: waiter.lesson,
-              teacher_name: waiter.teacher_name,
-              device_type: waiter.device_type,
-              quantity: remainQty,
-              class: waiter.class,
-              subject: waiter.subject,
-              room: waiter.room,
-              remarks: `[候補] ${waiter.remarks || ''}`.replace('[候補] [候補]', '[候補]').trim(),
-              status: 'waiting',
-              user_email: waiter.user_email,
-              created_at: waiter.created_at
-            }])
-          );
-        }
-      }
-
-      if (updatePromises.length > 0) {
-        await Promise.all(updatePromises);
-      }
-    }
-  }
-}
-
-async function markAsMissed(bookingId, teacherName) {
-  if (!confirm(`確定要將 ${teacherName} 的此筆記錄標記為「欠取機」嗎？\n系統將自動為該老師累加 1 次欠取次數！`)) return;
-
-  try {
-    await _supabase.from('bookings').update({ status: 'missed' }).eq('id', bookingId);
-
-    const { data: teacher } = await _supabase.from('teachers').select('missed_count').eq('name', teacherName).single();
-
-    if (teacher) {
-      const newCount = (teacher.missed_count || 0) + 1;
-      const autoSuspend = newCount >= 2;
-      let suspendedUntilDate = null;
-      let deletedNames = [];
-
-      if (autoSuspend) {
-        suspendedUntilDate = getSuspendedUntilDate(new Date());
-
-        const todayStr = getTodayString();
-        const { data: suspendedPeriodBookings } = await _supabase
-          .from('bookings')
-          .select('*')
-          .eq('teacher_name', teacherName)
-          .gte('date', todayStr)
-          .lte('date', suspendedUntilDate)
-          .order('date', { ascending: true })
-          .order('lesson', { ascending: true });
-
-        if (suspendedPeriodBookings && suspendedPeriodBookings.length > 0) {
-          for (let fb of suspendedPeriodBookings) {
-            await deleteBookingWithPromotion(fb);
-            deletedNames.push(`${fb.date} (${LESSON_NAMES[fb.lesson]} - ${fb.device_type} x ${fb.quantity}部)`);
-          }
-        }
-      }
-
-      await _supabase
-        .from('teachers')
-        .update({ 
-          missed_count: newCount, 
-          is_suspended: autoSuspend, 
-          suspended_until: suspendedUntilDate 
-        })
-        .eq('name', teacherName);
-
-      let baseMsg = `已成功將 ${teacherName} 老師標記為欠取！累計次數更新為 ${newCount} 次。`;
-      if (autoSuspend) {
-        baseMsg += `\n\n⚠️ 該老師已累計欠取 2 次，系統已自動暫停其借用權限 2 個工作天（停借至 ${suspendedUntilDate}，即下個工作天方可借用）！`;
-        if (deletedNames.length > 0) {
-          baseMsg += `\n\n已自動強制取消該老師在「停借期間內」的以下 ${deletedNames.length} 筆預約，並已將釋出庫存自動遞補給候補老師：\n- ` + deletedNames.join('\n- ');
-        } else {
-          baseMsg += `\n\n（該老師在停借期間內目前暫無任何預約記錄可供扣減）`;
-        }
-      }
-      alert(baseMsg);
-    }
-
-    loadAdminBookings();
-    loadAdminTeachers();
-
-  } catch (err) {
-    console.error("標記欠取及自動扣減未來預約出錯:", err);
-    alert('標記失敗，請稍後再試。');
-  }
-}
-
-async function deleteBookingAdmin(id) {
-  if (!confirm('管理員確定要強制刪除此借用記錄嗎？\n釋出的庫存將優先自動分派給當天同課節候補的同事。')) return;
-  if (!_supabase) return;
-
-  try {
-    const { data: targetBooking, error: fetchErr } = await _supabase
-      .from('bookings')
-      .select('*')
-      .eq('id', id)
-      .single();
-
-    if (fetchErr || !targetBooking) {
-      alert('無法取得預約資訊，或預約已被取消。');
-      return;
-    }
-
-    await deleteBookingWithPromotion(targetBooking);
-    alert('✅ 強制刪除預約成功！釋出庫存已分派完成。');
-    loadAdminBookings();
-
-  } catch (err) {
-    console.error("管理員強制刪除預約出錯:", err);
-    alert('刪除失敗，請稍後再試。');
-  }
-}
-
 // ================= 4. 教師欠取與黑名單管理 =================
 async function loadAdminTeachers() {
   const { data } = await _supabase.from('teachers').select('*');
@@ -462,38 +273,6 @@ async function loadAdminTeachers() {
   });
 }
 
-async function toggleTeacherSuspend(teacherName, isSuspended, untilDate = null) {
-  await _supabase.from('teachers').update({ is_suspended: isSuspended, suspended_until: untilDate }).eq('name', teacherName);
-  loadAdminTeachers();
-}
-
-function promptSuspend(teacherName) {
-  const untilDate = prompt(`請輸入 ${teacherName} 的停借截止日期 (格式: YYYY-MM-DD)：`, '');
-  toggleTeacherSuspend(teacherName, true, untilDate || null);
-}
-
-async function resetMissedCount(teacherName) {
-  if (!confirm(`確定要將 ${teacherName} 的欠取次數重設為 0 次嗎？`)) return;
-  await _supabase.from('teachers').update({ missed_count: 0 }).eq('name', teacherName);
-  loadAdminTeachers();
-}
-
-async function addNewTeacher(event) {
-  event.preventDefault();
-  const name = document.getElementById('newTeacherName').value.trim();
-  const email = document.getElementById('newTeacherEmail').value.trim();
-  if (!name || !email) return;
-
-  const { error } = await _supabase.from('teachers').insert([{ name, email, missed_count: 0, is_suspended: false }]);
-  if (error) alert('新增失敗：' + error.message);
-  else {
-    alert(`✅ 已成功新增 ${name} 老師 (${email})！`);
-    document.getElementById('newTeacherName').value = '';
-    document.getElementById('newTeacherEmail').value = '';
-    loadAdminTeachers();
-  }
-}
-
 // ================= 5. 全校基準物資總數設定 =================
 async function loadAdminResources() {
   try {
@@ -512,49 +291,6 @@ async function loadAdminResources() {
     }
   } catch (err) {
     console.error("載入資源基準總數失敗:", err);
-  }
-}
-
-async function updateResourcesStock(event) {
-  event.preventDefault();
-  
-  const submitBtn = event.target.querySelector('button[type="submit"]');
-  const originalText = submitBtn.innerHTML;
-  
-  submitBtn.disabled = true;
-  submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> 正在套用更新...';
-
-  const ipadVal = parseInt(document.getElementById('adminIpadStock').value);
-  const mobileVal = parseInt(document.getElementById('adminMobileStock').value);
-
-  try {
-    const { data: data1, error: error1 } = await _supabase
-      .from('resources')
-      .update({ total_qty: ipadVal })
-      .eq('name', 'iPad')
-      .select();
-
-    const { data: data2, error: error2 } = await _supabase
-      .from('resources')
-      .update({ total_qty: mobileVal })
-      .eq('name', 'Mobile')
-      .select();
-
-    if (error1 || error2) {
-      throw new Error(error1?.message || error2?.message || "更新失敗，請檢查 RLS Policy 權限");
-    }
-
-    if (!data1?.length || !data2?.length) {
-      throw new Error("更新成功，但資料庫未受影響（請檢查資源表中是否存在 'iPad' 和 'Mobile'）");
-    }
-
-    alert('✅ 全校物資總量已成功更新！前台已即時同步套用新上限。');
-  } catch (err) {
-    console.error("更新庫存出錯:", err);
-    alert('❌ 儲存失敗：' + err.message);
-  } finally {
-    submitBtn.disabled = false;
-    submitBtn.innerHTML = originalText;
   }
 }
 
@@ -592,50 +328,14 @@ async function loadDailyAdjustments() {
   });
 }
 
-async function saveDailyAdjustment(event) {
-  event.preventDefault();
-  const date = document.getElementById('adjustDate').value;
-  const device_type = document.getElementById('adjustDevice').value;
-  const available_qty = parseInt(document.getElementById('adjustQty').value);
-  const reason = document.getElementById('adjustReason').value.trim();
-
-  if (!date) return;
-
-  const { error } = await _supabase
-    .from('daily_adjustments')
-    .upsert({ date, device_type, available_qty, reason }, { onConflict: 'date,device_type' });
-
-  if (error) {
-    alert('設定失敗：' + error.message);
-  } else {
-    alert(`✅ 已成功將 ${date} 的 ${device_type} 可借用總量調整為 ${available_qty} 部！`);
-    document.getElementById('adjustQty').value = '';
-    document.getElementById('adjustReason').value = '';
-    loadDailyAdjustments();
-  }
-}
-
-async function deleteDailyAdjustment(id) {
-  if (!confirm('確定要還原此特定日期的庫存設定，使其恢復為全校預設基準總量嗎？')) return;
-  await _supabase.from('daily_adjustments').delete().eq('id', id);
-  loadDailyAdjustments();
-}
-
 // ================= 7. 統一將函數掛載給 Window =================
 window.loginWithGoogle = loginWithGoogle;
 window.logout = logout;
 window.switchTab = switchTab;
 window.loadAdminBookings = loadAdminBookings;
-window.updateBookingStatus = updateBookingStatus;
-window.markAsMissed = markAsMissed;
-window.deleteBookingAdmin = deleteBookingAdmin;
+
+
+
 window.loadAdminTeachers = loadAdminTeachers;
-window.toggleTeacherSuspend = toggleTeacherSuspend;
-window.promptSuspend = promptSuspend;
-window.resetMissedCount = resetMissedCount;
-window.addNewTeacher = addNewTeacher;
 window.loadAdminResources = loadAdminResources;
-window.updateResourcesStock = updateResourcesStock;
 window.loadDailyAdjustments = loadDailyAdjustments;
-window.saveDailyAdjustment = saveDailyAdjustment;
-window.deleteDailyAdjustment = deleteDailyAdjustment;

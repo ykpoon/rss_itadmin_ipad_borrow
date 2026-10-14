@@ -122,7 +122,7 @@ async function checkIsAdminFromDB(email) {
       .from('admins')
       .select('email')
       .ilike('email', email.trim());
-    return !error && data && data.length > 0;
+    return !error && data && data.some(a=>(a.email||'').trim().toLowerCase()===email.trim().toLowerCase());
   } catch (e) {
     console.warn("查詢 admins 表出錯:", e);
     return false;
@@ -135,15 +135,20 @@ async function checkAuth() {
     const { data: { session } } = await _supabase.auth.getSession();
     await updateAuthUI(session?.user || null);
 
-    return new Promise((resolve) => {
-      _supabase.auth.onAuthStateChange(async (_event, session) => {
-        await updateAuthUI(session?.user || null);
-        await loadTeachers(); // 登入變更時，立即重算教師綁定
-        renderTable(); 
-        resolve();
-      });
-      resolve();
+    _supabase.auth.onAuthStateChange((_event, session) => {
+      setTimeout(async()=>{
+        await updateAuthUI(session?.user || null); await loadTeachers();
+        await fetchAndRender(); await fetchMonthlyData(); renderTable();
+        if(_event==='SIGNED_OUT') window.previewHideReminder?.();
+        if(_event==='SIGNED_IN' && session?.user && sessionStorage.getItem('ipad-login-reminder')==='1') {
+          sessionStorage.removeItem('ipad-login-reminder'); window.previewShowReminder?.(session.user);
+        }
+      },0);
     });
+    if(session?.user && sessionStorage.getItem('ipad-login-reminder')==='1') {
+      sessionStorage.removeItem('ipad-login-reminder'); setTimeout(()=>window.previewShowReminder?.(session.user),80);
+    }
+
   } catch (e) {
     console.error("Auth 初始化錯誤:", e);
   }
@@ -157,7 +162,9 @@ async function updateAuthUI(user) {
   const adminPortalBtn = document.getElementById('adminPortalBtn');
   const loginAlert = document.getElementById('loginRequiredAlert');
 
+  if(currentUser?.id!==user?.id){teachersList=[];currentBookings=[];monthlyBookings=[];}
   currentUser = user;
+  window.previewPersonalAuthChanged?.();
 
   if (user) {
     if (loginBtn) loginBtn.classList.add('hidden');
@@ -183,6 +190,7 @@ async function updateAuthUI(user) {
 }
 
 window.loginWithGoogle = async function() {
+  sessionStorage.setItem('ipad-login-reminder','1');
   try {
     const { error } = await _supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -418,6 +426,7 @@ function setupRealtime() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
       fetchAndRender();
       fetchMonthlyData();
+      if(!document.getElementById('personal-section')?.classList.contains('hidden')) window.previewRefreshPersonal?.();
     })
     .subscribe();
 
@@ -527,6 +536,7 @@ window.updateRemainingPreview = function() {
 window.switchFrontTab = function(sectionId) {
   document.querySelectorAll('.tab-section-content').forEach(el => el.classList.add('hidden'));
   document.querySelectorAll('.tab-btn').forEach(el => {
+    el.classList.remove('active');
     el.classList.remove('border-indigo-600', 'text-indigo-600', 'font-bold');
     el.classList.add('border-transparent', 'text-slate-500');
   });
@@ -536,9 +546,11 @@ window.switchFrontTab = function(sectionId) {
 
   const activeBtn = document.getElementById(`tabBtn-${sectionId.replace('-section', '')}`);
   if (activeBtn) {
+    activeBtn.classList.add('active');
     activeBtn.classList.add('border-indigo-600', 'text-indigo-600', 'font-bold');
     activeBtn.classList.remove('border-transparent', 'text-slate-500');
   }
+  if(sectionId==='personal-section') window.previewRefreshPersonal?.();
 };
 
 // ================= 6. 視覺化月曆邏輯 =================
@@ -909,8 +921,8 @@ window.editQuantity = async function(bookingId, deviceType, lesson, currentQty, 
   const input = prompt(`【修改借用數量】\n\n您目前為 ${teacherName} 登記了 ${deviceType} x ${currentQty} 部。\n請輸入您想修改後的新數量：`, currentQty);
   if (input === null) return;
 
-  const newQty = parseInt(input.trim());
-  if (isNaN(newQty) || newQty <= 0) {
+  const newQty = Number(input.trim());
+  if (!Number.isSafeInteger(newQty) || newQty <= 0) {
     alert('❌ 請輸入有效的正整數！');
     return;
   }
@@ -1099,13 +1111,14 @@ window.deleteBooking = async function(id, teacherName) {
       return;
     }
 
-    const { error: deleteErr } = await _supabase.from('bookings').delete().eq('id', id);
+    const { data: deletedRows, error: deleteErr } = await _supabase.from('bookings').delete().eq('id', id).eq('status', targetBooking.status).eq('quantity', targetBooking.quantity).select('id');
+    if (!deleteErr && !deletedRows?.length) { alert('記錄已變更，請刷新後再試。'); return; }
     if (deleteErr) {
       alert('刪除失敗：' + deleteErr.message);
       return;
     }
 
-    if (targetBooking.status !== 'waiting') {
+    if (!['waiting','returned'].includes(targetBooking.status)) {
       let releasedQty = targetBooking.quantity;
       const bookingDate = targetBooking.date;
       const lesson = targetBooking.lesson;
@@ -1163,6 +1176,7 @@ window.deleteBooking = async function(id, teacherName) {
                 class: waiter.class,
                 subject: waiter.subject,
                 room: waiter.room,
+                usage_type: waiter.usage_type || 'interactive',
                 remarks: `[候補] ${waiter.remarks || ''}`.replace('[候補] [候補]', '[候補]').trim(),
                 status: 'waiting',
                 user_email: waiter.user_email,
@@ -1174,7 +1188,8 @@ window.deleteBooking = async function(id, teacherName) {
         }
 
         if (updatePromises.length > 0) {
-          await Promise.all(updatePromises);
+          const results = await Promise.all(updatePromises);
+          const failed = results.find(result=>result.error);if(failed)throw failed.error;
           alert(`✅ 取消預約成功！釋出庫存已自動分派完成：\n\n` + notifyMessages.join('\n\n'));
         }
       }

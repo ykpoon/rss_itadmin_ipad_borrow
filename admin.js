@@ -20,9 +20,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await verifyAdminAuth();
 
     // 🌟 即時監聽 Google OAuth 跳轉完成
-    _supabase.auth.onAuthStateChange(async (event, session) => {
-      await verifyAdminAuth();
-    });
+    _supabase.auth.onAuthStateChange(()=>{setTimeout(()=>verifyAdminAuth(),0)});
   } catch (err) {
     console.error("後台認證初始化失敗:", err);
   }
@@ -62,7 +60,7 @@ async function verifyAdminAuth() {
         .from('admins')
         .select('email')
         .ilike('email', currentAdminUser.email.trim());
-      isAdmin = !error && data && data.length > 0;
+      isAdmin = !error && data && data.some(a=>(a.email||'').trim().toLowerCase()===currentAdminUser.email.trim().toLowerCase());
     } catch (e) {
       console.error("查詢 admins 出錯:", e);
     }
@@ -255,10 +253,11 @@ function getSuspendedUntilDate(startDate = new Date()) {
 }
 
 async function deleteBookingWithPromotion(booking) {
-  const { error: deleteErr } = await _supabase.from('bookings').delete().eq('id', booking.id);
+  const { data: deletedRows, error: deleteErr } = await _supabase.from('bookings').delete().eq('id', booking.id).eq('status', booking.status).eq('quantity', booking.quantity).select('id');
+  if (!deleteErr && !deletedRows?.length) throw Error('記錄已變更，請刷新後再試。');
   if (deleteErr) throw deleteErr;
 
-  if (booking.status !== 'waiting') {
+  if (!['waiting','returned'].includes(booking.status)) {
     let releasedQty = booking.quantity;
     const bookingDate = booking.date;
     const lesson = booking.lesson;
@@ -313,6 +312,7 @@ async function deleteBookingWithPromotion(booking) {
               class: waiter.class,
               subject: waiter.subject,
               room: waiter.room,
+              usage_type: waiter.usage_type || 'interactive',
               remarks: `[候補] ${waiter.remarks || ''}`.replace('[候補] [候補]', '[候補]').trim(),
               status: 'waiting',
               user_email: waiter.user_email,
@@ -323,7 +323,7 @@ async function deleteBookingWithPromotion(booking) {
       }
 
       if (updatePromises.length > 0) {
-        await Promise.all(updatePromises);
+        const results=await Promise.all(updatePromises);const failed=results.find(result=>result.error);if(failed)throw failed.error;
       }
     }
   }
@@ -333,7 +333,11 @@ async function markAsMissed(bookingId, teacherName) {
   if (!confirm(`確定要將 ${teacherName} 的此筆記錄標記為「欠取機」嗎？\n系統將自動為該老師累加 1 次欠取次數！`)) return;
 
   try {
-    await _supabase.from('bookings').update({ status: 'missed' }).eq('id', bookingId);
+    const {data: currentBooking,error: bookingError}=await _supabase.from('bookings').select('*').eq('id',bookingId).single();
+    if(bookingError||!currentBooking)throw bookingError||Error('預約不存在。');
+    if(!['pending','borrowed'].includes(currentBooking.status))throw Error('此預約已處理。');
+    const {data: marked,error: markError}=await _supabase.from('bookings').update({status:'missed'}).eq('id',bookingId).eq('status',currentBooking.status).select('id');
+    if(markError)throw markError;if(!marked.length)throw Error('記錄已變更，沒有重複增加欠取次數。');
 
     const { data: teacher } = await _supabase.from('teachers').select('missed_count').eq('name', teacherName).single();
 
@@ -351,6 +355,8 @@ async function markAsMissed(bookingId, teacherName) {
           .from('bookings')
           .select('*')
           .eq('teacher_name', teacherName)
+          .in('status', ['pending','waiting'])
+          .order('status', {ascending:false})
           .gte('date', todayStr)
           .lte('date', suspendedUntilDate)
           .order('date', { ascending: true })

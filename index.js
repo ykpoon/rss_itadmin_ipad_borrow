@@ -599,6 +599,12 @@ async function fetchMonthlyData() {
   renderCalendar();
 }
 
+function getCalendarStockIndicator(remaining, total) {
+  if (remaining === 0) return { state: 'full', label: '額滿', className: 'text-rose-700 bg-rose-100 font-bold rounded px-0.5' };
+  if (remaining <= total / 2) return { state: 'tight', label: '緊張', className: 'text-amber-700 bg-amber-100 font-bold rounded px-0.5' };
+  return { state: 'available', label: '供應充足', className: 'text-emerald-600 font-semibold' };
+}
+
 function renderCalendar() {
   const grid = document.getElementById('calendarGrid');
   if (!grid) return;
@@ -620,7 +626,7 @@ function renderCalendar() {
 
   for (let day = 1; day <= totalDays; day++) {
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    const dayBookings = monthlyBookings.filter(b => b.date === dateStr && b.status !== 'returned' && !(b.remarks && b.remarks.includes('[候補]')));
+    const dayBookings = monthlyBookings.filter(b => b.date === dateStr && !['waiting','returned'].includes(b.status) && !(b.remarks && b.remarks.includes('[候補]')));
 
     const card = document.createElement('div');
     card.onclick = () => {
@@ -651,15 +657,15 @@ function renderCalendar() {
       const ipadRem = Math.max(0, currentDayIpadTotal - ipadBorrowed);
       const mobileRem = Math.max(0, currentDayMobileTotal - mobileBorrowed);
 
-      const ipadColor = ipadRem > 30 ? 'text-emerald-600 font-semibold' : (ipadRem > 0 ? 'text-amber-500 font-bold' : 'text-rose-500 font-bold');
-      const mobileColor = mobileRem > 15 ? 'text-emerald-600 font-semibold' : (mobileRem > 0 ? 'text-amber-500 font-bold' : 'text-rose-500 font-bold');
+      const ipadIndicator = getCalendarStockIndicator(ipadRem, currentDayIpadTotal);
+      const mobileIndicator = getCalendarStockIndicator(mobileRem, currentDayMobileTotal);
 
       lessonsListHTML += `
         <div class="flex items-center justify-between py-0.5 border-b border-slate-100/50 last:border-0 text-[10px]">
-          <span class="font-extrabold text-slate-500 mr-1">${LESSON_SHORTS[l]}</span>
-          <div class="flex items-center space-x-1.5">
-            <span class="${ipadColor}" title="iPad 尚餘">iPad: ${ipadRem}</span>
-            <span class="${mobileColor}" title="Mobile 尚餘">Mobile: ${mobileRem}</span>
+          <span class="font-extrabold text-slate-500 mr-1 shrink-0 whitespace-nowrap">${LESSON_SHORTS[l]}</span>
+          <div class="flex items-center gap-1 whitespace-nowrap">
+            <span class="${ipadIndicator.className}" data-device="iPad" data-date="${dateStr}" data-lesson="${l}" data-availability="${ipadIndicator.state}" title="iPad ${ipadIndicator.label}：尚餘 ${ipadRem} 部／當日總量 ${currentDayIpadTotal} 部" aria-label="iPad ${ipadIndicator.label}，尚餘 ${ipadRem} 部">iPad: ${ipadRem}</span>
+            <span class="${mobileIndicator.className}" data-device="Mobile" data-date="${dateStr}" data-lesson="${l}" data-availability="${mobileIndicator.state}" title="Mobile ${mobileIndicator.label}：尚餘 ${mobileRem} 部／當日總量 ${currentDayMobileTotal} 部" aria-label="Mobile ${mobileIndicator.label}，尚餘 ${mobileRem} 部">Mobile: ${mobileRem}</span>
           </div>
         </div>
       `;

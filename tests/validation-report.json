@@ -1,0 +1,77 @@
+{
+  "generatedAt": "2026-10-14T00:55:21.903794+00:00",
+  "unitTests": {
+    "passed": 13,
+    "failed": 0,
+    "command": "node --test tests/release.test.mjs"
+  },
+  "browserGroups": [
+    {
+      "name": "本機測試身份登入、未登入狀態及每次登入本週提醒",
+      "status": "passed"
+    },
+    {
+      "name": "原本及額外日期經真實 supabase-js HTTP bulk INSERT 寫入 SQL，總表安全顯示備註",
+      "status": "passed"
+    },
+    {
+      "name": "原有管理員介面逐筆已取及歸還，個人總表讀取新狀態",
+      "status": "passed"
+    },
+    {
+      "name": "日期、狀態及設備篩選、無效日期提示、手機版面",
+      "status": "passed"
+    },
+    {
+      "name": "登出及切換教師身份後，總表不殘留上一人的記錄",
+      "status": "passed"
+    },
+    {
+      "name": "重新登入及刷新頁面後重新讀取已有記錄，不會因匿名初始讀取失敗而顯示空白",
+      "status": "passed"
+    },
+    {
+      "name": "單筆超過剩餘庫存可提交候補，表單不再錯誤阻擋",
+      "status": "passed"
+    },
+    {
+      "name": "管理員取消後按順序遞補及拆單，保留數量、用途、提交者及排隊時間",
+      "status": "passed"
+    },
+    {
+      "name": "教師本人取消會全額遞補，修改數量保持原記錄及排隊時間",
+      "status": "passed"
+    },
+    {
+      "name": "已歸還記錄刪除不會再次釋出庫存或錯誤遞補",
+      "status": "passed"
+    },
+    {
+      "name": "欠取重複操作不累加，兩次欠取停借，保留欠取及已歸還歷史",
+      "status": "passed"
+    },
+    {
+      "name": "管理員解除停借、欠取清零、全校庫存及每日調節仍可使用",
+      "status": "passed"
+    },
+    {
+      "name": "原有管理員新增教師功能保留",
+      "status": "passed"
+    }
+  ],
+  "browserErrors": [],
+  "historyChecks": [
+    "載入更新程式不修改既有資料",
+    "停借保留本人已取／已還／欠取歷史",
+    "只取消未完成預約",
+    "先取消本人候補再釋出確認預約，避免錯誤扶正",
+    "欠取累計及停借更新完成"
+  ],
+  "scope": "本機 SQL 與 Auth/REST 測試橋接，沒有真實 Google OAuth 或 Supabase 雲端連線",
+  "userPreviewAcceptance": "使用者確認已完成共用 Supabase Preview 測試並要求正式發佈",
+  "limitations": [
+    "未新增伺服器庫存鎖或跨請求交易",
+    "未更改既有 RLS 策略",
+    "正式部署驗收只讀，沒有向正式 Supabase 寫入測試資料"
+  ]
+}

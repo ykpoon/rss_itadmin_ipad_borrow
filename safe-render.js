@@ -34,8 +34,9 @@
     const classCell=td(row,''),className=document.createElement('span'),subject=document.createElement('span');className.className='booking-class';className.textContent=item.class;subject.className='booking-secondary';subject.textContent=item.subject;classCell.append(className,subject);
     td(row,item.room).classList.add('booking-room');const actionCell=td(row,''),actions=document.createElement('div');actions.className='booking-actions';actionCell.append(actions);
     if(isCurrentUserAdmin||ownNames.has(item.teacher_name)){
-     if(['pending','waiting'].includes(item.status))button(actions,'修改',()=>window.editQuantity(item.id,item.device_type,item.lesson,item.quantity,item.teacher_name),'修改借用數量');
-     if(isCurrentUserAdmin||['pending','waiting'].includes(item.status))button(actions,'取消',()=>window.deleteBooking(item.id,item.teacher_name),'取消登記');
+     if(['pending','waiting'].includes(item.status)&&(isCurrentUserAdmin||item.date>=window.bookingDateRules.today()))button(actions,'修改',()=>window.editQuantity(item.id,item.device_type,item.lesson,item.quantity,item.teacher_name),'修改借用數量');
+     if(window.bookingDateRules.canCancel(item,isCurrentUserAdmin))button(actions,'取消',()=>window.deleteBooking(item.id,item.teacher_name),'取消登記');
+     else if(['pending','waiting'].includes(item.status)){const note=document.createElement('span');note.className='booking-readonly';note.textContent=item.date===window.bookingDateRules.today()?'當日不可取消':'已過取消期限';actions.append(note)}
     }else{actions.textContent='—';actions.classList.add('booking-readonly')}body.append(row);
    }
    if(promotions.length)window.bookingFeedback?.show({title:'候補成功！',message:promotions.map(b=>`${b.teacher_name} · 第 ${b.lesson} 節 ${b.device_type} ${b.quantity} 部已成功補上。`).join('\n')});

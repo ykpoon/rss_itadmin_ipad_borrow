@@ -1,3 +1,31 @@
+# 借用日期及取消期限更新 — 2026-10-16
+
+所有新增借用（包括多日期清單及管理員代登記）只開放至 **2026-12-31**，月曆不可前往 2027 年。既有 2027 年預約保留，可在個人總表及管理後台查閱及處理。
+
+普通教師最遲須在借用日前一天取消；借用當日或之後不可自行取消，當日亦不可減少數量。期限按 Asia/Hong_Kong 計算，管理員保留例外處理權限。
+
+取消改用 `ipad_cancel_booking_before_day_v1` 交易：驗證登入、所屬教師及期限後，刪除與候補遞補一起成功或一起回復。沿用先到先補及部分拆單，保留用途、提交者與原排隊時間；已歸還記錄取消不重複釋出庫存。既有 2027 候補拆單屬原預約的分配，保留其總需求。
+
+資料庫 guard 同步封鎖未開放日期、繞過取消期限及舊頁面的直接 DELETE。舊頁面取消會要求重新整理。此更新新增函數及 trigger，不改寫現有記錄、不更換既有表或 RLS 策略；Supabase 連線設定不變。
+
+## 部署次序及回退
+
+1. 先套用 `database/booking-date-rules.sql`，只安裝函數，現有操作繼續。
+2. 部署此版前後台，核對新 RPC 前端已上線。
+3. 套用 `database/activate-booking-date-rules.sql` 啟用限制，再核對原資料筆數及雜湊。
+
+若需回退到仍用直接 DELETE 的舊程式，先停用 `ipad_date_rules_write_guard` trigger，才回退程式；這會一併停止資料庫日期限制。保留既有記錄及函數，不要清空表。重新開放 2027 年時，須同步更新 `booking-date-rules.js` 的日期上限及資料庫 `ipad_date_rules.last_booking_date()`，並更新頁面提示與日期欄位。
+
+## 驗證
+
+`node --test tests/release.test.mjs`：16 項前端服務測試，包括單日／多日期上限、取消身份與香港午夜邊界。
+
+`node --test tests/date-rules.test.mjs`：使用隔離 PGlite（需安裝 `@electric-sql/pglite`），涵蓋批次原子拒絕、同日取消及減量、管理員例外、既有 2027 相容、FIFO 全額／部分遞補，以及拆單失敗完整回復。`tests/fixtures/date-rules-schema.sql` 只供隔離測試，不可用於正式資料庫。
+
+另以真正 supabase-js 配合本機 Auth/REST 橋接驗證 UI → API → SQL → UI；此橋接不等同完整 PostgREST、Google OAuth 或多連線壓力測試。取消交易之間有 advisory lock；原有新增借用預檢仍沒有跨使用者庫存鎖。
+
+---
+
 # iPad 借用系統正式相容更新 — 2026-10-14
 
 新增多日期／多課節借用、Google 登入後本週提醒，以及純查閱的「我的借用總表」。個人總表包含同電郵的教師姓名、管理員代登記及歷史記錄，可篩選日期、設備與狀態。

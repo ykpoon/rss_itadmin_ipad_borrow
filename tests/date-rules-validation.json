@@ -1,0 +1,9 @@
+{
+  "date": "2026-10-16",
+  "frontend_service_tests": {"passed": 16, "failed": 0, "command": "node --test tests/release.test.mjs"},
+  "isolated_database_scenarios": {"passed": 8, "failed": 0, "command": "node --test tests/date-rules.test.mjs"},
+  "browser_integration_scenarios": {"passed": 6, "failed": 0, "scope": "Chromium desktop and mobile viewport, actual supabase-js, isolated PGlite and local Auth/REST bridge", "checks": ["primary and batch date bounds, same-day cancel button hidden", "calendar capped at December 2026; injected January batch date rejected", "old raw DELETE and direct same-day RPC rejected", "previous-day teacher cancellation and partial waitlist promotion", "mobile same-day cancellation rule", "admin same-day exception and existing 2027 preservation; no JavaScript errors"]},
+  "history_and_suspension_checks": {"passed": 5, "failed": 0, "checks": ["loading does not mutate records", "borrowed/returned/missed history retained", "only unfinished reservations cancelled", "own waiting rows cancelled first before promotion", "missed count and suspension updated"]},
+  "production_test_booking_writes": 0,
+  "limitations": ["Local Auth/REST bridge does not emulate all PostgREST behavior or Google OAuth", "No multi-connection stock concurrency test; existing creation preflight retains concurrency limits"]
+}

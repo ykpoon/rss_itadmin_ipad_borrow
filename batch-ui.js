@@ -1,4 +1,4 @@
-// Batch selection UI. All database operations are handled by preview-shared.js.
+// Batch selection UI. All database operations are handled by booking-enhancements.js.
 const previewBatch=[];
 function previewPrimarySelection(){
  const date=document.getElementById('selectDate')?.value;
@@ -36,6 +36,7 @@ window.previewAddBatchDate=function(){
  const date=document.getElementById('batchDate').value;
  const lesson=Number(document.getElementById('batchLesson').value);
  const today=getTodayString();
+ try{window.bookingDateRules.assertBookable(date)}catch(e){return alert(e.message)}
  if(!date||date<today||![1,2,3,4,5,6,7].includes(lesson))return alert('請選擇今天或以後的有效日期及課節。');
  if(previewAllSelections().some(x=>x.date===date&&x.lesson===lesson))return alert('呢個日期及課節已包括喺批量清單。');
  if(previewAllSelections().length>=30)return alert('每次最多 30 個組合（包括原本一筆）。');
@@ -43,7 +44,8 @@ window.previewAddBatchDate=function(){
 };
 
 document.addEventListener('DOMContentLoaded',()=>{
- document.getElementById('batchDate').value=getTodayString();
+ document.getElementById('batchDate').value=window.bookingDateRules.clampDate(getTodayString());
+ window.bookingDateRules.updateBounds();
  document.getElementById('batchLesson').value=document.getElementById('lessonSelect').value||'1';
  document.getElementById('selectDate').addEventListener('change',previewRenderBatch);
  document.getElementById('lessonSelect').addEventListener('change',previewRenderBatch);previewRenderBatch();

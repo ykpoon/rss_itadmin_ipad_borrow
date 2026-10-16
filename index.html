@@ -117,7 +117,7 @@
         <div class="flex items-center space-x-2 bg-white px-4 py-2 rounded-xl border border-teal-500/15 shadow-xs hover:border-teal-500/30 transition">
           <i class="fa-regular fa-calendar text-teal-500 text-sm"></i>
           <span class="text-sm font-bold text-slate-600">查詢日期：</span>
-          <input type="date" id="selectDate" class="bg-transparent text-slate-800 text-sm font-extrabold focus:outline-none cursor-pointer">
+          <input type="date" id="selectDate" max="2026-12-31" class="bg-transparent text-slate-800 text-sm font-extrabold focus:outline-none cursor-pointer">
         </div>
 
         <!-- 管理員後台跳轉 -->
@@ -217,6 +217,7 @@
             </div>
 
                           <!-- 💡 已還原：緊湊、高質感、高度適中的兩欄/三欄並排版 -->
+          <p class="mb-4 rounded-lg bg-amber-50 p-3 text-xs text-amber-900">借用暫只開放至 2026 年 12 月 31 日（包括多日期借用）。最遲須於借用日前一天取消；當日不可自行取消或減少數量，如需協助請聯絡管理員。</p>
           <form id="bookingForm" onsubmit="handleFormSubmit(event)" class="space-y-4">
             <div class="grid grid-cols-2 gap-4">
               <!-- 借用老師 -->
@@ -364,7 +365,7 @@
 <div class="mt-5 border border-teal-200 bg-teal-50/70 rounded-2xl p-4 space-y-3" id="batchPanel">
   <h3 class="font-extrabold text-teal-900">📅 多日期／多課節借用</h3>
   <p class="text-xs text-slate-600">上方「查詢日期」及「借用課節」會自動成為第 1 筆借用，唔使再加入一次。以下只需添加額外日期／課節；按「確認提交全部日期／課節」會連原本一筆一齊提交。原有單筆提交按鈕只會提交原本一筆。</p>
-  <div class="flex flex-wrap gap-2 items-end"><label class="text-xs font-bold">日期<input id="batchDate" type="date" class="block p-2 rounded-lg border border-teal-200 bg-white"></label>
+  <div class="flex flex-wrap gap-2 items-end"><label class="text-xs font-bold">日期<input id="batchDate" max="2026-12-31" type="date" class="block p-2 rounded-lg border border-teal-200 bg-white"></label>
   <label class="text-xs font-bold">課節<select id="batchLesson" class="block p-2 rounded-lg border border-teal-200 bg-white"><option value="1">第 1 節</option><option value="2">第 2 節</option><option value="3">第 3 節</option><option value="4">第 4 節</option><option value="5">第 5 節</option><option value="6">第 6 節</option><option value="7">第 7 節</option></select></label>
   <button type="button" onclick="previewAddBatchDate()" class="bg-teal-700 text-white px-4 py-2 rounded-lg text-xs font-bold">＋ 加入組合</button></div>
   <div id="batchItems" class="flex flex-wrap gap-2 text-xs"><span class="text-slate-400">原本借用日期／課節會自動包括</span></div>
@@ -459,7 +460,7 @@
         <div class="flex items-center space-x-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100">
           <button onclick="changeMonth(-1)" class="text-teal-600 hover:text-teal-700 font-bold px-1.5 transition"><i class="fa-solid fa-chevron-left"></i></button>
           <span id="calendarMonthTitle" class="text-sm font-bold text-slate-700 min-w-[100px] text-center font-mono">2026 年 09 月</span>
-          <button onclick="changeMonth(1)" class="text-teal-600 hover:text-teal-700 font-bold px-1.5 transition"><i class="fa-solid fa-chevron-right"></i></button>
+          <button id="calendar-next-month" onclick="changeMonth(1)" class="text-teal-600 hover:text-teal-700 font-bold px-1.5 transition"><i class="fa-solid fa-chevron-right"></i></button>
         </div>
       </div>
 
@@ -494,6 +495,7 @@
   <!-- 引入我們建立的共用 Supabase 連線檔 -->
   <script src="supabase-config.js"></script>
   <!-- 引入前台專屬 JS 邏輯檔 -->
+  <script src="booking-date-rules.js"></script>
   <script src="index.js"></script>
   <script src="batch-ui.js"></script>
   <script src="booking-feedback.js"></script>

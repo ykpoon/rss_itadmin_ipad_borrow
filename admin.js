@@ -253,80 +253,8 @@ function getSuspendedUntilDate(startDate = new Date()) {
 }
 
 async function deleteBookingWithPromotion(booking) {
-  const { data: deletedRows, error: deleteErr } = await _supabase.from('bookings').delete().eq('id', booking.id).eq('status', booking.status).eq('quantity', booking.quantity).select('id');
-  if (!deleteErr && !deletedRows?.length) throw Error('記錄已變更，請刷新後再試。');
-  if (deleteErr) throw deleteErr;
-
-  if (!['waiting','returned'].includes(booking.status)) {
-    let releasedQty = booking.quantity;
-    const bookingDate = booking.date;
-    const lesson = booking.lesson;
-    const deviceType = booking.device_type;
-
-    const { data: waitingList, error: waitErr } = await _supabase
-      .from('bookings')
-      .select('*')
-      .eq('date', bookingDate)
-      .eq('lesson', lesson)
-      .eq('device_type', deviceType)
-      .eq('status', 'waiting')
-      .order('created_at', { ascending: true });
-
-    if (!waitErr && waitingList && waitingList.length > 0) {
-      let updatePromises = [];
-
-      for (let waiter of waitingList) {
-        if (releasedQty <= 0) break;
-
-        if (waiter.quantity <= releasedQty) {
-          releasedQty -= waiter.quantity;
-          const cleanedRemarks = (waiter.remarks || '').replace('[候補]', '').trim();
-          const promotedRemarks = `[候補成功] ${cleanedRemarks}`.trim();
-
-          updatePromises.push(
-            _supabase.from('bookings')
-              .update({ status: 'pending', remarks: promotedRemarks })
-              .eq('id', waiter.id)
-          );
-        } else {
-          const partQty = releasedQty;
-          const remainQty = waiter.quantity - partQty;
-          releasedQty = 0;
-
-          const cleanedRemarks = (waiter.remarks || '').replace('[候補]', '').trim();
-          const promotedRemarks = `[候補成功] ${cleanedRemarks}`.trim();
-
-          updatePromises.push(
-            _supabase.from('bookings')
-              .update({ quantity: partQty, status: 'pending', remarks: promotedRemarks })
-              .eq('id', waiter.id)
-          );
-
-          updatePromises.push(
-            _supabase.from('bookings').insert([{
-              date: waiter.date,
-              lesson: waiter.lesson,
-              teacher_name: waiter.teacher_name,
-              device_type: waiter.device_type,
-              quantity: remainQty,
-              class: waiter.class,
-              subject: waiter.subject,
-              room: waiter.room,
-              usage_type: waiter.usage_type || 'interactive',
-              remarks: `[候補] ${waiter.remarks || ''}`.replace('[候補] [候補]', '[候補]').trim(),
-              status: 'waiting',
-              user_email: waiter.user_email,
-              created_at: waiter.created_at
-            }])
-          );
-        }
-      }
-
-      if (updatePromises.length > 0) {
-        const results=await Promise.all(updatePromises);const failed=results.find(result=>result.error);if(failed)throw failed.error;
-      }
-    }
-  }
+  const { error } = await _supabase.rpc('ipad_cancel_booking_before_day_v1', { p_booking_id: booking.id });
+  if (error) throw error;
 }
 
 async function markAsMissed(bookingId, teacherName) {

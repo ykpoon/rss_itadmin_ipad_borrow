@@ -1,4 +1,4 @@
-// Compatible with the existing Supabase tables and policies. No migration is required.
+// Compatible with existing tables; database/booking-date-rules.sql enforces date and cancellation rules.
 // Client preflight checks retain the legacy API's concurrency limits; they are not RLS.
 (function(){
  'use strict';
@@ -37,9 +37,10 @@
   const a=await actor();if(!entries.length||entries.length>30)throw Error('每次須提交 1 至 30 筆借用。');
   const normalized=entries.map(e=>({date:String(e.date||''),lesson:Number(e.lesson),teacher_name:String(e.teacher_name||''),device_type:String(e.device_type||''),quantity:Number(e.quantity),class:String(e.class||'').trim(),subject:String(e.subject||'').trim(),room:String(e.room||'').trim(),usage_type:String(e.usage_type||''),remarks:String(e.remarks||'').trim()}))
    .sort((x,y)=>x.date.localeCompare(y.date)||x.lesson-y.lesson);
-  const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Hong_Kong',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+  const today=window.bookingDateRules.today();
   const seen=new Set();
   for(const e of normalized){
+   window.bookingDateRules.assertBookable(e.date);
    const validDate=/^\d{4}-\d{2}-\d{2}$/.test(e.date)&&Number.isFinite(new Date(e.date+'T12:00:00Z').getTime());
    if(!validDate||new Date(e.date+'T12:00:00Z').toISOString().slice(0,10)!==e.date||e.date<today||!Number.isInteger(e.lesson)||e.lesson<1||e.lesson>7)throw Error('請選擇今天或以後的有效日期及課節。');
    if(!Number.isSafeInteger(e.quantity)||e.quantity<=0||e.quantity>2147483647)throw Error('借用數量必須是有效正整數。');
@@ -101,7 +102,13 @@
   const {data,error}=await _supabase.from('bookings').update({status}).eq('id',id).eq('status',b.status).eq('quantity',b.quantity).select('*');
   if(error)throw error;if(!data.length)throw Error('記錄已變更，請刷新後再試。');return data[0];
  }
- window.bookingEnhancements={actor,loadMine,submitEntries,checkedBooking,setStatus};
+ async function cancelBooking(id){
+  const {a,b}=await checkedBooking(id);
+  window.bookingDateRules.assertCanCancel(b,a.isAdmin);
+  const {data,error}=await _supabase.rpc('ipad_cancel_booking_before_day_v1',{p_booking_id:id});
+  if(error)throw error;return data;
+ }
+ window.bookingEnhancements={actor,loadMine,submitEntries,checkedBooking,setStatus,cancelBooking};
  window.ipadLoadPersonalBookings=loadMine;
  if(typeof window.updateRemainingPreview==='function'){
   const original=window.updateRemainingPreview;window.updateRemainingPreview=()=>{
@@ -127,14 +134,21 @@
  window.handleFormSubmit=event=>{event.preventDefault();return submitUI([previewPrimarySelection()],false)};
  window.previewSubmitBatch=()=>submitUI(previewAllSelections(),true);
  if(typeof window.deleteBooking==='function'){
-  const original=window.deleteBooking;
-  window.deleteBooking=async(id,teacher)=>{try{const {a,b}=await checkedBooking(id);if(!a.isAdmin&&!['pending','waiting'].includes(b.status))throw Error('已取還的記錄請由管理員處理。');await original(id,teacher);await fetchMonthlyData();window.previewRefreshPersonal?.()}catch(e){alert(e.message)}};
+  window.deleteBooking=async(id)=>{try{
+   const {a,b}=await checkedBooking(id);window.bookingDateRules.assertCanCancel(b,a.isAdmin);
+   if(!confirm(`確定取消 ${b.teacher_name} 的 ${b.date} 借用？釋出庫存會自動分派給同課節候補。`))return;
+   const result=await cancelBooking(id);
+   alert(`已取消借用。${result.promoted_count?`已為 ${result.promoted_count} 筆候補分配庫存。`:''}`);
+   await fetchAndRender();await fetchMonthlyData();window.previewRefreshPersonal?.();
+  }catch(e){alert(e.message)}};
  }
  window.editQuantity=async(id)=>{
   try{
-   const {b}=await checkedBooking(id);if(!['pending','waiting'].includes(b.status))throw Error('此狀態不可修改借用數量。');
+   const {a,b}=await checkedBooking(id);if(!['pending','waiting'].includes(b.status))throw Error('此狀態不可修改借用數量。');
    const input=prompt(`修改 ${b.teacher_name} 的借用數量（目前 ${b.quantity} 部）：`,b.quantity);if(input===null)return;
    const quantity=Number(input);if(!Number.isSafeInteger(quantity)||quantity<=0||quantity>2147483647)throw Error('請輸入有效正整數。');
+   if(!a.isAdmin&&(b.date<window.bookingDateRules.today()||(b.date===window.bookingDateRules.today()&&quantity<b.quantity)))throw Error('最遲須於借用日前一天取消或減少數量；借用當日不可自行取消。');
+   if(b.date>window.bookingDateRules.maxDate&&quantity>b.quantity)throw Error(window.bookingDateRules.message);
    if(b.status!=='waiting'){
     const [{data:resources,error:re},{data:adjusts,error:de},slot]=await Promise.all([
      _supabase.from('resources').select('name,total_qty'),_supabase.from('daily_adjustments').select('*').eq('date',b.date),readRange(b.date,b.date)

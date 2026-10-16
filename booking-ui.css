@@ -39,3 +39,5 @@
 @keyframes booking-draw-check{to{stroke-dashoffset:0}}
 @media(max-width:600px){.booking-notice{right:16px;bottom:16px;padding:18px 36px 18px 18px}.booking-notice-title{font-size:16px}}
 @media(prefers-reduced-motion:reduce){.booking-success-animate,.booking-success-animate .booking-success-icon,.booking-notice,.booking-notice-icon,.booking-notice-icon path,.booking-notice::after{animation:none!important;transform:none!important}.booking-notice-icon path{stroke-dashoffset:0}.booking-notice--exit{opacity:0}}
+
+#calendar-next-month:disabled, #dashboard-next-day:disabled { opacity: .3; cursor: not-allowed; }

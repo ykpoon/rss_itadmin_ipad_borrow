@@ -15,14 +15,14 @@ const WEEKDAY_NAMES = ['星期日', '星期一', '星期二', '星期三', '星�
 
 let currentBookings = [];
 let teachersList = []; // 充當本地快取（Cache），避免重複請求資料庫
-let calendarDate = new Date(); // 紀錄月曆當前顯示的年月
+let calendarDate = window.bookingDateRules.clampMonth(new Date()); // 紀錄月曆當前顯示的年月
 let monthlyBookings = [];      // 儲存當月所有的借用記錄以便統計
 
 // ================= 1. 初始化與事件監聽 =================
 document.addEventListener('DOMContentLoaded', async () => {
   const dateInput = document.getElementById('selectDate');
   if (dateInput) {
-    dateInput.value = getTodayString();
+    dateInput.value = window.bookingDateRules.clampDate(getTodayString());
     dateInput.addEventListener('change', fetchAndRender);
   }
 
@@ -44,6 +44,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function changeSelectedDate(newDateStr) {
+    try { window.bookingDateRules.assertBookable(newDateStr); } catch (e) { alert(e.message); window.bookingDateRules.updateBounds(); return; }
     if (dateInput) dateInput.value = newDateStr;
     if (dashDatePicker) dashDatePicker.value = newDateStr;
     fetchAndRender();
@@ -103,8 +104,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 function getTodayString() {
-  const today = new Date();
-  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  return window.bookingDateRules.today();
 }
 
 function formatDateWithWeekday(dateStr) {
@@ -465,6 +465,8 @@ function setupRealtime() {
 async function fetchAndRender() {
   const selectDateEl = document.getElementById('selectDate');
   if (!selectDateEl) return;
+  if (selectDateEl.value > window.bookingDateRules.maxDate) { alert(window.bookingDateRules.message); selectDateEl.value = window.bookingDateRules.maxDate; }
+  window.bookingDateRules.updateBounds();
   const selectedDate = selectDateEl.value;
   const displaySelectedDateEl = document.getElementById('displaySelectedDate');
   if (displaySelectedDateEl) displaySelectedDateEl.textContent = formatDateWithWeekday(selectedDate);
@@ -555,11 +557,15 @@ window.switchFrontTab = function(sectionId) {
 
 // ================= 6. 視覺化月曆邏輯 =================
 window.changeMonth = async function(offset) {
-  calendarDate.setMonth(calendarDate.getMonth() + offset);
+  const next = new Date(calendarDate.getFullYear(), calendarDate.getMonth() + Number(offset), 1);
+  if (next > window.bookingDateRules.latestMonth()) return;
+  calendarDate = next;
   await fetchMonthlyData();
 };
 
 async function fetchMonthlyData() {
+  calendarDate = window.bookingDateRules.clampMonth(calendarDate);
+  window.bookingDateRules.updateBounds();
   const year = calendarDate.getFullYear();
   const month = calendarDate.getMonth();
   
@@ -1095,116 +1101,11 @@ window.handleFormSubmit = async function(event) {
   }
 };
 
-// ================= index.js 中的 deleteBooking 函數 =================
-window.deleteBooking = async function(id, teacherName) {
-  if (!currentUser) {
-    alert('請先登入！');
-    return;
-  }
-
-  if (!confirm(`確定要取消 ${teacherName} 的此筆借用記錄嗎？\n釋出的庫存將優先自動分派給當天同課節候補的同事。`)) return;
-  if (!_supabase) return;
-
+// Cancellation and queue promotion run atomically through the authenticated RPC.
+window.deleteBooking = async function(id) {
   try {
-    const { data: targetBooking, error: fetchErr } = await _supabase
-      .from('bookings')
-      .select('date, lesson, device_type, quantity, status')
-      .eq('id', id)
-      .single();
-
-    if (fetchErr || !targetBooking) {
-      alert('無法取得預約資訊，或預約已被取消。');
-      return;
-    }
-
-    const { data: deletedRows, error: deleteErr } = await _supabase.from('bookings').delete().eq('id', id).eq('status', targetBooking.status).eq('quantity', targetBooking.quantity).select('id');
-    if (!deleteErr && !deletedRows?.length) { alert('記錄已變更，請刷新後再試。'); return; }
-    if (deleteErr) {
-      alert('刪除失敗：' + deleteErr.message);
-      return;
-    }
-
-    if (!['waiting','returned'].includes(targetBooking.status)) {
-      let releasedQty = targetBooking.quantity;
-      const bookingDate = targetBooking.date;
-      const lesson = targetBooking.lesson;
-      const deviceType = targetBooking.device_type;
-
-      const { data: waitingList, error: waitErr } = await _supabase
-        .from('bookings')
-        .select('*')
-        .eq('date', bookingDate)
-        .eq('lesson', lesson)
-        .eq('device_type', deviceType)
-        .eq('status', 'waiting')
-        .order('created_at', { ascending: true });
-
-      if (!waitErr && waitingList && waitingList.length > 0) {
-        let updatePromises = [];
-        let notifyMessages = [];
-
-        for (let waiter of waitingList) {
-          if (releasedQty <= 0) break;
-
-          if (waiter.quantity <= releasedQty) {
-            releasedQty -= waiter.quantity;
-            const cleanedRemarks = (waiter.remarks || '').replace('[候補]', '').trim();
-            const promotedRemarks = `[候補成功] ${cleanedRemarks}`.trim();
-
-            updatePromises.push(
-              _supabase.from('bookings')
-                .update({ status: 'pending', remarks: promotedRemarks })
-                .eq('id', waiter.id)
-            );
-            notifyMessages.push(`🎉 當天候補第 1 順位 ${waiter.teacher_name} 老師（${waiter.quantity} 部 ${deviceType}）已全額成功補上！`);
-
-          } else {
-            const partQty = releasedQty;
-            const remainQty = waiter.quantity - partQty;
-            releasedQty = 0;
-
-            const cleanedRemarks = (waiter.remarks || '').replace('[候補]', '').trim();
-            const promotedRemarks = `[候補成功] ${cleanedRemarks}`.trim();
-
-            updatePromises.push(
-              _supabase.from('bookings')
-                .update({ quantity: partQty, status: 'pending', remarks: promotedRemarks })
-                .eq('id', waiter.id)
-            );
-
-            updatePromises.push(
-              _supabase.from('bookings').insert([{
-                date: waiter.date,
-                lesson: waiter.lesson,
-                teacher_name: waiter.teacher_name,
-                device_type: waiter.device_type,
-                quantity: remainQty,
-                class: waiter.class,
-                subject: waiter.subject,
-                room: waiter.room,
-                usage_type: waiter.usage_type || 'interactive',
-                remarks: `[候補] ${waiter.remarks || ''}`.replace('[候補] [候補]', '[候補]').trim(),
-                status: 'waiting',
-                user_email: waiter.user_email,
-                created_at: waiter.created_at
-              }])
-            );
-            notifyMessages.push(`⚖️ 因庫存限制，已為當天 ${waiter.teacher_name} 老師拆單：\n- 成功補上 ${partQty} 部\n- 剩餘 ${remainQty} 部繼續在候補名單中排隊！`);
-          }
-        }
-
-        if (updatePromises.length > 0) {
-          const results = await Promise.all(updatePromises);
-          const failed = results.find(result=>result.error);if(failed)throw failed.error;
-          alert(`✅ 取消預約成功！釋出庫存已自動分派完成：\n\n` + notifyMessages.join('\n\n'));
-        }
-      }
-    }
-
-    fetchAndRender();
-
-  } catch (err) {
-    console.error("取消預約並自動遞補出錯:", err);
-    alert('取消失敗，請稍後再試。');
-  }
+    await window.bookingEnhancements.cancelBooking(id);
+    await fetchAndRender();
+    await fetchMonthlyData();
+  } catch (e) { alert(e.message); }
 };

@@ -24,8 +24,8 @@ function harness({hostname='localhost',role='teacher',bookings=[]}={}){
    }catch(e){return Promise.reject(e).then(resolve,reject)}
   }};return q;
  }
- const storage=new Map();const context={document:{getElementById:()=>null,addEventListener:()=>{}},location:{hostname},sessionStorage:{getItem:k=>storage.get(k),setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},crypto:{randomUUID},Intl,Date,console,alert:m=>alerts.push(m),_supabase:{auth:{getUser:async()=>({data:{user:users[state.role]},error:null})},from}};
- context.window=context;vm.runInNewContext(source,context);
+ const storage=new Map();const context={document:{getElementById:()=>null,addEventListener:()=>{}},location:{hostname},sessionStorage:{getItem:k=>storage.get(k),setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},crypto:{randomUUID},Intl,Date,console,alert:m=>alerts.push(m),_supabase:{auth:{getUser:async()=>({data:{user:users[state.role]},error:null})},from,rpc:async(name,args)=>{writes.push({operation:"rpc",name,args});return {data:{cancelled_id:args.p_booking_id,promoted_count:0},error:null}}}};
+ context.window=context;vm.runInNewContext(fs.readFileSync(new URL('../booking-date-rules.js',import.meta.url),'utf8'),context);vm.runInNewContext(source,context);
  return {api:context.bookingEnhancements,db,writes,alerts,state,context};
 }
 
@@ -91,4 +91,27 @@ test('pickup/return requires admin and valid transitions; repeat does not add a 
 test('admin cannot manually pick up a waiting reservation without sufficient stock',async()=>{
  const h=harness({role:'admin',bookings:[{...entry(),id:'wait',status:'waiting'},{...entry({teacher_name:'Teacher B',quantity:40}),id:'pending',status:'pending'}]});h.db.resources[0].total_qty=50;
  await assert.rejects(()=>h.api.setStatus('wait','borrowed'),/庫存不足/);assert.equal(h.writes.length,0);
+});
+
+test('cutoff accepts Dec31, rejects Jan1 and rejects mixed-date batch before writes',async()=>{
+ const h=harness();h.db.resources[0].total_qty=150;
+ await h.api.submitEntries([entry({date:'2026-12-31'})]);assert.equal(h.writes.length,1);
+ for(const entries of [[entry({date:'2027-01-01'})],[entry({lesson:4}),entry({date:'2027-01-01'})]])await assert.rejects(()=>h.api.submitEntries(entries),/暫未開放/);
+ assert.equal(h.writes.length,1);
+});
+test('teacher cancellation checked before RPC; admin may handle same-day and past',async()=>{
+ const tomorrow=new Date(today()+'T12:00:00Z');tomorrow.setUTCDate(tomorrow.getUTCDate()+1);
+ const rows=[{...entry(),id:'same',status:'pending'},{...entry({date:'2026-01-01'}),id:'past',status:'pending'},{...entry({date:tomorrow.toISOString().slice(0,10)}),id:'future',status:'waiting'}];
+ const h=harness({bookings:rows});
+ for(const id of ['same','past'])await assert.rejects(()=>h.api.cancelBooking(id),/前一天/);assert.equal(h.writes.length,0);
+ await h.api.cancelBooking('future');assert.equal(h.writes[0].name,'ipad_cancel_booking_before_day_v1');
+ h.state.role='admin';for(const id of ['same','past'])await h.api.cancelBooking(id);assert.equal(h.writes.length,3);
+});
+test('school day follows Hong Kong midnight independently of browser timezone',()=>{
+ const h=harness();const NativeDate=Date;
+ h.context.Date=class extends NativeDate{constructor(...args){super(...(args.length?args:['2026-12-30T15:59:59Z']))}};
+ assert.equal(h.context.bookingDateRules.today(),'2026-12-30');
+ h.context.Date=class extends NativeDate{constructor(...args){super(...(args.length?args:['2026-12-30T16:00:00Z']))}};
+ assert.equal(h.context.bookingDateRules.today(),'2026-12-31');
+ assert.equal(h.context.bookingDateRules.canCancel({date:'2026-12-31',status:'pending'}),false);
 });

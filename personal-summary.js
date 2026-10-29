@@ -1,4 +1,4 @@
-// 共用資料庫 Preview 的個人查閱分頁，不修改預約。
+// Personal bookings: reuse the existing guarded edit/cancel operations.
 (function () {
   'use strict';
   const statuses = {
@@ -6,7 +6,7 @@
     returned: ['已歸還', 'green'], missed: ['欠取機', 'rose'],
     waiting: ['候補中', 'orange']
   };
-  let bookings = [], requestVersion = 0;
+  let bookings = [], requestVersion = 0, actionInProgress = false;
   const byId = id => document.getElementById(id);
   const isVisible = () => !byId('personal-section')?.classList.contains('hidden');
   const emailKey = value => String(value || '').trim().toLowerCase();
@@ -33,7 +33,7 @@
       .personal-filters input,.personal-filters select{background:white;border:1px solid #cbd5e1;border-radius:8px;padding:9px;color:#334155;min-width:0;width:100%;font-weight:400}
       .personal-message{padding:12px 0;font-size:14px;color:#64748b;min-height:44px}
       .personal-table-wrap{overflow-x:auto;border:1px solid #e2e8f0;border-radius:12px}
-      .personal-table{width:100%;min-width:890px;border-collapse:collapse;font-size:14px;text-align:left}
+      .personal-table{width:100%;min-width:1140px;border-collapse:collapse;font-size:14px;text-align:left}
       .personal-table th{background:#f0fdfa;color:#0f766e;padding:13px 12px;white-space:nowrap}
       .personal-table td{padding:14px 12px;border-top:1px solid #e2e8f0;vertical-align:top}
       .personal-table tbody tr:hover{background:#f8fafc}
@@ -44,6 +44,16 @@
       .personal-badge.green{background:#d1fae5;color:#065f46}.personal-badge.rose{background:#ffe4e6;color:#9f1239}
       .personal-badge.orange{background:#ffedd5;color:#9a3412}
       .personal-note{max-width:250px;white-space:pre-wrap;overflow-wrap:anywhere}
+      .personal-actions{position:sticky;right:0;background:#fff;box-shadow:-5px 0 8px -8px #334155;min-width:166px}
+      .personal-table th.personal-actions{background:#f0fdfa}
+      .personal-action-buttons{display:flex;flex-direction:column;gap:8px}
+      .personal-action-buttons button{min-height:44px;padding:8px 12px;white-space:nowrap}
+      .personal-action-buttons .personal-cancel{border-color:#fecdd3;color:#be123c}
+      .personal-action-buttons .personal-cancel:hover{background:#fff1f2}
+      .personal-summary button:disabled{cursor:wait;opacity:.55}
+      .personal-action-note{display:block;font-size:12px;line-height:1.6;color:#64748b;margin-top:6px;max-width:180px}
+      .personal-machine{display:block;margin-top:5px;font-size:12px;color:#64748b;max-width:150px}
+      .personal-badge.teal{background:#ccfbf1;color:#115e59}.personal-badge.purple{background:#ede9fe;color:#5b21b6}
       .personal-empty{text-align:center;color:#64748b;padding:36px!important}
       @media(max-width:900px){.personal-cards{grid-template-columns:repeat(3,minmax(0,1fr))}}
       @media(max-width:500px){.personal-summary{padding:16px}.personal-cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.personal-card{padding:12px}.personal-heading h2{font-size:20px}}
@@ -56,7 +66,7 @@
     section.innerHTML = `
       <div class="personal-heading">
         <div><h2 id="personal-title">我的借用總表</h2>
-          <p>查閱自己的借用安排及取還機狀況；管理員代為登記的借用亦會列出。</p>
+          <p>查閱自己的借用安排，亦可直接修改數量或取消借用；管理員代為登記的借用亦會列出。</p>
           <p id="personal-identity" style="margin-top:8px;font-weight:700"></p>
         </div>
         <button type="button" id="personal-refresh">重新整理</button>
@@ -81,11 +91,11 @@
       <p id="personal-message" class="personal-message" role="status" aria-live="polite"></p>
       <div class="personal-table-wrap" tabindex="0" aria-label="個人借用總表，可左右捲動">
         <table class="personal-table"><thead><tr>
-          <th scope="col">借用日期</th><th scope="col">課節</th><th scope="col">設備</th><th scope="col">數量</th>
-          <th scope="col">班別</th><th scope="col">科目／用途</th><th scope="col">地點</th><th scope="col">狀態</th><th scope="col">備註</th>
+          <th scope="col">借用日期</th><th scope="col">課節</th><th scope="col">設備</th><th scope="col">申請機種</th><th scope="col">數量</th>
+          <th scope="col">班別</th><th scope="col">科目／用途</th><th scope="col">地點</th><th scope="col">狀態</th><th scope="col">備註</th><th scope="col" class="personal-actions">操作</th>
         </tr></thead><tbody id="personal-rows"></tbody></table>
       </div>
-      <p style="margin-top:12px;font-size:12px;color:#64748b">上方統計涵蓋所有個人記錄；下方總表按篩選結果顯示。每個日期及課節各佔一筆。此頁只供查閱。</p>
+      <p style="margin-top:12px;font-size:12px;color:#64748b">上方統計涵蓋所有個人記錄；下方總表按篩選結果顯示。每個日期及課節各佔一筆。最遲須於借用日前一天取消；借用當日只可增加數量，不能自行取消或減少數量。機種按登記用途顯示，實際派機以圖書館安排為準。</p>
     `;
     document.querySelector('main').append(section);
     byId('personal-refresh').addEventListener('click', refresh);
@@ -124,7 +134,7 @@
     });
   }
   function emptyRows(message) {
-    const cell = document.createElement('td'); cell.colSpan = 9;
+    const cell = document.createElement('td'); cell.colSpan = 11;
     cell.className = 'personal-empty'; cell.textContent = message;
     const row = document.createElement('tr'); row.append(cell); byId('personal-rows').replaceChildren(row);
   }
@@ -159,9 +169,50 @@
           badge.className = `personal-badge ${color}`; badge.textContent = label; cell.append(badge);
         } else if (index === 8) cell.className = 'personal-note';
         row.append(cell);
+        if (index === 2) {
+          const machineCell = document.createElement('td');
+          const machine = b.usage_type === 'basic' ? ['普通機','teal','基礎網頁／線上功課']
+            : b.usage_type === 'interactive' ? ['較高性能機','purple','互動教學／多媒體'] : ['未註明','',''];
+          const badge = document.createElement('span'); badge.className = `personal-badge ${machine[1]}`; badge.textContent = machine[0];
+          machineCell.append(badge);
+          if (machine[2]) { const detail = document.createElement('span'); detail.className = 'personal-machine'; detail.textContent = machine[2]; machineCell.append(detail); }
+          row.append(machineCell);
+        }
       });
-      body.append(row);
+      const actions = document.createElement('td'); actions.className = 'personal-actions';
+      const buttons = document.createElement('div'); buttons.className = 'personal-action-buttons'; actions.append(buttons);
+      const editable = ['pending','waiting'].includes(b.status);
+      const isAdmin = typeof isCurrentUserAdmin !== 'undefined' && isCurrentUserAdmin;
+      const today = window.bookingDateRules.today();
+      if (editable && (isAdmin || b.date >= today)) addAction(buttons, '修改數量', b.id, 'editQuantity');
+      if (editable && window.bookingDateRules.canCancel(b,isAdmin)) addAction(buttons, '取消借用', b.id, 'deleteBooking');
+      if (!editable || (!isAdmin && b.date <= today)) {
+        const note = document.createElement('span'); note.className = 'personal-action-note';
+        note.textContent = !editable ? '此狀態如需更改，請聯絡管理員。'
+          : b.date === today ? '當日不可取消或減少數量。' : '已過修改及取消期限。';
+        actions.append(note);
+      }
+      row.append(actions); body.append(row);
     });
+  }
+  function addAction(container,label,id,handler) {
+    const button = document.createElement('button'); button.type = 'button'; button.textContent = label;
+    if (handler === 'deleteBooking') button.className = 'personal-cancel';
+    button.disabled = actionInProgress;
+    button.addEventListener('click', async () => {
+      if (actionInProgress || !currentUser?.email) return;
+      actionInProgress = true;
+      byId('personal-rows').querySelectorAll('button').forEach(b => { b.disabled = true; });
+      try {
+        await window[handler](id);
+      } catch (error) { alert('未能完成操作：'+error.message); }
+      finally {
+        actionInProgress = false;
+        // Refresh in place, preserving date/status/device filters and the current tab.
+        await refresh();
+      }
+    });
+    container.append(button);
   }
   async function refresh() {
     if (!byId('personal-section')) return;

@@ -293,7 +293,7 @@ async function markAsMissed(bookingId, teacherName) {
         if (suspendedPeriodBookings && suspendedPeriodBookings.length > 0) {
           for (let fb of suspendedPeriodBookings) {
             await deleteBookingWithPromotion(fb);
-            deletedNames.push(`${fb.date} (${LESSON_NAMES[fb.lesson]} - ${fb.device_type} x ${fb.quantity}部)`);
+            deletedNames.push(`${window.schoolDates.format(fb.date)} (${LESSON_NAMES[fb.lesson]} - ${fb.device_type} x ${fb.quantity}部)`);
           }
         }
       }
@@ -309,7 +309,7 @@ async function markAsMissed(bookingId, teacherName) {
 
       let baseMsg = `已成功將 ${teacherName} 老師標記為欠取！累計次數更新為 ${newCount} 次。`;
       if (autoSuspend) {
-        baseMsg += `\n\n⚠️ 該老師已累計欠取 2 次，系統已自動暫停其借用權限 2 個工作天（停借至 ${suspendedUntilDate}，即下個工作天方可借用）！`;
+        baseMsg += `\n\n⚠️ 該老師已累計欠取 2 次，系統已自動暫停其借用權限 2 個工作天（停借至 ${window.schoolDates.format(suspendedUntilDate)}，即下個工作天方可借用）！`;
         if (deletedNames.length > 0) {
           baseMsg += `\n\n已自動強制取消該老師在「停借期間內」的以下 ${deletedNames.length} 筆預約，並已將釋出庫存自動遞補給候補老師：\n- ` + deletedNames.join('\n- ');
         } else {

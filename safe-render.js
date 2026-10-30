@@ -46,7 +46,7 @@
    if(!currentUser){const row=document.createElement('tr');const cell=td(row,'請先登入後查看教師名單。');cell.colSpan=4;body.append(row);return}
    const badge=document.getElementById('frontSuspendedCount');if(badge)badge.textContent=`${teachersList.filter(t=>t.is_suspended).length} 位停借中`;
    for(const t of [...teachersList].sort((a,b)=>Number(b.is_suspended)-Number(a.is_suspended)||b.missed_count-a.missed_count)){
-    const row=document.createElement('tr');td(row,t.name);td(row,`${t.missed_count||0} 次`);td(row,t.is_suspended?'暫停借用中':'正常');td(row,t.suspended_until||'—');body.append(row);
+    const row=document.createElement('tr');td(row,t.name);td(row,`${t.missed_count||0} 次`);td(row,t.is_suspended?'暫停借用中':'正常');td(row,window.schoolDates.format(t.suspended_until)||'—');body.append(row);
    }
   };
  }
@@ -72,7 +72,7 @@
    if(error)return;
    document.getElementById('suspendedCount').textContent=`${data.filter(t=>t.is_suspended).length} 位停借中`;
    for(const t of data.sort((a,b)=>a.name.localeCompare(b.name))){const row=document.createElement('tr');
-    td(row,`${t.name}\n${t.email||'未設定電郵'}`);td(row,`${t.missed_count||0} 次`);td(row,t.is_suspended?'暫停借用中':'正常');td(row,t.suspended_until||'—');
+    td(row,`${t.name}\n${t.email||'未設定電郵'}`);td(row,`${t.missed_count||0} 次`);td(row,t.is_suspended?'暫停借用中':'正常');td(row,window.schoolDates.format(t.suspended_until)||'—');
     const actions=td(row,'');button(actions,t.is_suspended?'解除停借':'設為停借',()=>t.is_suspended?window.toggleTeacherSuspend(t.name,false):window.promptSuspend(t.name));
     button(actions,'清零',()=>window.resetMissedCount(t.name));body.append(row);
    }
@@ -81,7 +81,7 @@
    const {data,error}=await _supabase.from('daily_adjustments').select('*').order('date');
    const body=document.getElementById('dailyAdjustmentsTable');body.replaceChildren();
    if(error||!data.length){const row=document.createElement('tr');td(row,error?'未能載入調節記錄':'暫無特別日期調節').colSpan=5;body.append(row);return}
-   for(const t of data){const row=document.createElement('tr');td(row,t.date);td(row,t.device_type);td(row,`${t.available_qty} 部`);td(row,t.reason);button(td(row,''),'還原',()=>window.deleteDailyAdjustment(t.id));body.append(row)}
+   for(const t of data){const row=document.createElement('tr');td(row,window.schoolDates.format(t.date));td(row,t.device_type);td(row,`${t.available_qty} 部`);td(row,t.reason);button(td(row,''),'還原',()=>window.deleteDailyAdjustment(t.id));body.append(row)}
   };window.loadDailyAdjustments=loadDailyAdjustments;
  }
 })();

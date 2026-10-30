@@ -18,13 +18,13 @@ function previewRenderBatch(){
  const primary=previewPrimarySelection();
  const first=document.createElement('div');
  first.className='w-full rounded-lg border border-teal-400 bg-teal-100 text-teal-900 p-2 font-semibold';
- first.textContent=primary.date&&primary.lesson?`✅ 原本借用（自動包括）：${primary.date} 第 ${primary.lesson} 節`:'請先選擇上方查詢日期及借用課節';
+ first.textContent=primary.date&&primary.lesson?`✅ 原本借用（自動包括）：${window.schoolDates.format(primary.date)} 第 ${primary.lesson} 節`:'請先選擇上方查詢日期及借用課節';
  el.append(first);
  const extras=previewBatch.filter(x=>x.date!==primary.date||x.lesson!==primary.lesson);
  extras.forEach(x=>{
   const b=document.createElement('button');b.className='rounded-full border border-teal-300 bg-white px-3 py-2 text-teal-800';
-  b.textContent=`${x.date} 第 ${x.lesson} 節 ×`;b.type='button';
-  b.setAttribute('aria-label',`移除 ${x.date} 第 ${x.lesson} 節`);
+  b.textContent=`${window.schoolDates.format(x.date)} 第 ${x.lesson} 節 ×`;b.type='button';
+  b.setAttribute('aria-label',`移除 ${window.schoolDates.format(x.date)} 第 ${x.lesson} 節`);
   b.onclick=()=>{const i=previewBatch.findIndex(y=>y.date===x.date&&y.lesson===x.lesson);if(i!==-1)previewBatch.splice(i,1);previewRenderBatch()};
   el.append(b);
  });

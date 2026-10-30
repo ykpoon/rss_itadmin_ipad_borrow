@@ -34,6 +34,7 @@
       font-weight: 700; 
     }
   </style>
+<link rel="stylesheet" href="vendor/flatpickr.min.css">
 </head>
 <!-- index.html (修改後：乾淨、修正後的開場動畫區塊) -->
 <body class="custom-gradient-bg text-slate-700 min-h-screen flex flex-col">
@@ -495,7 +496,10 @@
   <!-- 引入我們建立的共用 Supabase 連線檔 -->
   <script src="supabase-config.js"></script>
   <!-- 引入前台專屬 JS 邏輯檔 -->
-  <script src="booking-date-rules.js"></script>
+  <script src="vendor/flatpickr.min.js"></script>
+<script src="vendor/zh-tw.js"></script>
+<script src="date-ui.js"></script>
+<script src="booking-date-rules.js"></script>
   <script src="index.js"></script>
   <script src="batch-ui.js"></script>
   <script src="booking-feedback.js"></script>

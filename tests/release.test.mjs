@@ -25,7 +25,7 @@ function harness({hostname='localhost',role='teacher',bookings=[]}={}){
   }};return q;
  }
  const storage=new Map();const context={document:{getElementById:()=>null,addEventListener:()=>{}},location:{hostname},sessionStorage:{getItem:k=>storage.get(k),setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},crypto:{randomUUID},Intl,Date,console,alert:m=>alerts.push(m),_supabase:{auth:{getUser:async()=>({data:{user:users[state.role]},error:null})},from,rpc:async(name,args)=>{writes.push({operation:"rpc",name,args});return {data:{cancelled_id:args.p_booking_id,promoted_count:0},error:null}}}};
- context.window=context;vm.runInNewContext(fs.readFileSync(new URL('../booking-date-rules.js',import.meta.url),'utf8'),context);vm.runInNewContext(source,context);
+ context.window=context;context.schoolDates={format:v=>v};vm.runInNewContext(fs.readFileSync(new URL('../booking-date-rules.js',import.meta.url),'utf8'),context);vm.runInNewContext(source,context);
  return {api:context.bookingEnhancements,db,writes,alerts,state,context};
 }
 

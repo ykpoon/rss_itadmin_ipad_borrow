@@ -66,9 +66,8 @@ begin
          or new.user_email is distinct from old.user_email or new.status is distinct from old.status then
         raise exception '此操作須由管理員處理。' using errcode='42501';
       end if;
-      if old.date < ipad_date_rules.school_today() or
-         (old.date = ipad_date_rules.school_today() and new.quantity < old.quantity) then
-        raise exception '最遲須於借用日前一天取消或減少數量；借用當日不可自行取消。' using errcode='42501';
+      if old.date <= ipad_date_rules.school_today() then
+        raise exception '已過修改及取消期限，請聯絡管理員。' using errcode='42501';
       end if;
     end if;
   end if;

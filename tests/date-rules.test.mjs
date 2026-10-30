@@ -15,6 +15,7 @@ test('date cutoff, cancellation authorization and atomic queue promotion',async 
  await db.exec("insert into teachers(name,email) values('Teacher','teacher@example.invalid'),('Alias','teacher@example.invalid'),('Other','other@example.invalid');insert into admins(email) values('admin@example.invalid');insert into resources(name,total_qty) values('iPad',50);grant select on admins,resources,daily_adjustments to authenticated;alter table admins enable row level security;create policy admin_read on admins for select to authenticated using(true)");
  const future=await insert(db,undefined,{date:'2027-01-04'});const before=(await db.query('select * from bookings order by id')).rows;
  await db.exec(read('../database/booking-date-rules.sql'));await db.exec(read('../database/activate-booking-date-rules.sql'));
+ await db.exec(read('../database/close-same-day-edits.sql'));
  assert.deepEqual((await db.query('select * from bookings order by id')).rows,before);
  // Fix school date for deterministic boundary tests only in this isolated database.
  await db.exec("create or replace function ipad_date_rules.school_today() returns date language sql stable security invoker set search_path='' as $$select date '2026-12-30'$$");
@@ -30,13 +31,28 @@ test('date cutoff, cancellation authorization and atomic queue promotion',async 
   await cancel(db,users.teacher,id);assert.equal((await db.query('select * from bookings where id=$1',[id])).rows.length,0);
   await assert.rejects(()=>insert(db,users.teacher,{date:'2027-01-01'}),/暫未開放/);
  });
- await t.test('same-day/past cancellation and decrease blocked; admin exception retained',async()=>{
+ await t.test('same-day/past cancellation and all quantity edits blocked; admin exception retained',async()=>{
   const same=await insert(db,users.teacher,{date:'2026-12-30'}),past=await insert(db,undefined,{date:'2026-12-29'});
   for(const id of [same,past])await assert.rejects(()=>cancel(db,users.teacher,id),/前一天/);
-  await assert.rejects(()=>as(db,users.teacher,'update bookings set quantity=5 where id=$1',[same]),/前一天/);
-  await as(db,users.teacher,'update bookings set quantity=11 where id=$1',[same]);
+  for(const quantity of [5,10,11])await assert.rejects(()=>as(db,users.teacher,'update bookings set quantity=$1 where id=$2',[quantity,same]),/已過修改及取消期限/);
+  await as(db,users.admin,'update bookings set quantity=11 where id=$1',[same]);
   await assert.rejects(()=>as(db,users.teacher,"update bookings set status='returned' where id=$1",[same]),/管理員/);
   for(const id of [same,past])await cancel(db,users.admin,id);
+ });
+ await t.test('Hong Kong day boundary closes edits; admin cancellation still promotes same-day queue',async()=>{
+  const id=await insert(db,users.teacher,{quantity:20}),wait=await insert(db,undefined,{status:'waiting',teacher_name:'Other',quantity:25});
+  await as(db,users.teacher,'update bookings set quantity=21 where id=$1',[id]);
+  await db.exec("create or replace function ipad_date_rules.school_today() returns date language sql stable security invoker set search_path='' as $$select date '2026-12-31'$$");
+  try{
+   for(const quantity of [19,21,22])await assert.rejects(()=>as(db,users.teacher,'update bookings set quantity=$1 where id=$2',[quantity,id]),/已過修改及取消期限/);
+   await assert.rejects(()=>cancel(db,users.teacher,id),/前一天/);
+   assert.equal((await db.query('select quantity from bookings where id=$1',[id])).rows[0].quantity,21);
+   await as(db,users.admin,'update bookings set quantity=20 where id=$1',[id]);
+   await cancel(db,users.admin,id);
+   assert.deepEqual((await db.query("select status,quantity from bookings where date='2026-12-31' order by status")).rows,[{status:'pending',quantity:20},{status:'waiting',quantity:5}]);
+  }finally{
+   await db.exec("create or replace function ipad_date_rules.school_today() returns date language sql stable security invoker set search_path='' as $$select date '2026-12-30'$$;delete from bookings where date='2026-12-31'");
+  }
  });
  await t.test('ownership, status and anonymous requests checked in database',async()=>{
   const id=await insert(db,users.teacher,{teacher_name:'Alias'});

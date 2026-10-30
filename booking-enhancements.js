@@ -145,9 +145,10 @@
  window.editQuantity=async(id)=>{
   try{
    const {a,b}=await checkedBooking(id);if(!['pending','waiting'].includes(b.status))throw Error('此狀態不可修改借用數量。');
+   window.bookingDateRules.assertCanEditQuantity(b,a.isAdmin);
    const input=prompt(`修改 ${b.teacher_name} 的借用數量（目前 ${b.quantity} 部）：`,b.quantity);if(input===null)return;
    const quantity=Number(input);if(!Number.isSafeInteger(quantity)||quantity<=0||quantity>2147483647)throw Error('請輸入有效正整數。');
-   if(!a.isAdmin&&(b.date<window.bookingDateRules.today()||(b.date===window.bookingDateRules.today()&&quantity<b.quantity)))throw Error('最遲須於借用日前一天取消或減少數量；借用當日不可自行取消。');
+   window.bookingDateRules.assertCanEditQuantity(b,a.isAdmin);
    if(b.date>window.bookingDateRules.maxDate&&quantity>b.quantity)throw Error(window.bookingDateRules.message);
    if(b.status!=='waiting'){
     const [{data:resources,error:re},{data:adjusts,error:de},slot]=await Promise.all([

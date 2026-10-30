@@ -47,7 +47,7 @@
    if(!e.class||!e.subject||!e.room||!['basic','interactive'].includes(e.usage_type))throw Error('請填妥班別、科目、地點及用途。');
    const teacher=a.teachers.find(t=>t.name===e.teacher_name);
    if(!teacher||(!a.isAdmin&&!a.names.has(e.teacher_name)))throw Error('借用老師身份不符。');
-   if(!a.isAdmin&&teacher.is_suspended&&(!teacher.suspended_until||e.date<=teacher.suspended_until))throw Error(`${e.date} 仍在該老師的停借期，整批未有提交。`);
+   if(!a.isAdmin&&teacher.is_suspended&&(!teacher.suspended_until||e.date<=teacher.suspended_until))throw Error(`${window.schoolDates.format(e.date)} 仍在該老師的停借期，整批未有提交。`);
    if(seen.has(identity(e)))throw Error('清單包含重複日期及課節。');seen.add(identity(e));
   }
   const key='ipad-booking-request:'+a.user.id+':'+JSON.stringify(normalized);
@@ -67,7 +67,7 @@
   const candidates=[];
   for(let i=0;i<normalized.length;i++){
    const e=normalized[i],slot=existing.filter(b=>b.date===e.date&&Number(b.lesson)===e.lesson&&b.device_type===e.device_type);
-   if(slot.some(b=>b.teacher_name===e.teacher_name&&b.class===e.class&&['pending','borrowed','waiting'].includes(b.status)))throw Error(`${e.date} 第 ${e.lesson} 節已有相同老師、班別及設備的預約，整批未有新增。`);
+   if(slot.some(b=>b.teacher_name===e.teacher_name&&b.class===e.class&&['pending','borrowed','waiting'].includes(b.status)))throw Error(`${window.schoolDates.format(e.date)} 第 ${e.lesson} 節已有相同老師、班別及設備的預約，整批未有新增。`);
    const resource=resources.find(r=>r.name===e.device_type);if(!resource)throw Error('設備種類不存在。');
    const stock=adjusts.find(d=>d.date===e.date&&d.device_type===e.device_type)?.available_qty??resource.total_qty;
    const used=slot.filter(b=>!['waiting','returned'].includes(b.status)).reduce((s,b)=>s+Number(b.quantity),0);
@@ -136,7 +136,7 @@
  if(typeof window.deleteBooking==='function'){
   window.deleteBooking=async(id)=>{try{
    const {a,b}=await checkedBooking(id);window.bookingDateRules.assertCanCancel(b,a.isAdmin);
-   if(!confirm(`確定取消 ${b.teacher_name} 的 ${b.date} 借用？釋出庫存會自動分派給同課節候補。`))return;
+   if(!confirm(`確定取消 ${b.teacher_name} 的 ${window.schoolDates.format(b.date)} 借用？釋出庫存會自動分派給同課節候補。`))return;
    const result=await cancelBooking(id);
    alert(`已取消借用。${result.promoted_count?`已為 ${result.promoted_count} 筆候補分配庫存。`:''}`);
    await fetchAndRender();await fetchMonthlyData();window.previewRefreshPersonal?.();
@@ -181,9 +181,9 @@
    const data=await loadMine();if(typeof currentUser==='undefined'||currentUser?.id!==user.id)return;
    const now=new Date(),monday=new Date(now.getFullYear(),now.getMonth(),now.getDate()-((now.getDay()+6)%7)),sunday=new Date(monday);sunday.setDate(sunday.getDate()+6);
    const fmt=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`,start=fmt(monday),end=fmt(sunday);
-   el('previewReminderRange').textContent=`${start} 至 ${end}`;const items=el('previewReminderItems');items.replaceChildren();
+   el('previewReminderRange').textContent=`${window.schoolDates.format(start)} 至 ${window.schoolDates.format(end)}`;const items=el('previewReminderItems');items.replaceChildren();
    const relevant=data.filter(b=>b.date>=start&&b.date<=end);
-   for(const b of relevant){const p=document.createElement('div');p.className='p-3 bg-slate-50 border rounded-xl';p.textContent=`${b.date}（${WEEKDAY_NAMES[new Date(b.date+'T12:00:00').getDay()]}）｜第 ${b.lesson} 節｜${b.device_type} × ${b.quantity}｜${b.class}｜${labels[b.status]||b.status}`;items.append(p)}
+   for(const b of relevant){const p=document.createElement('div');p.className='p-3 bg-slate-50 border rounded-xl';p.textContent=`${window.schoolDates.format(b.date)}（${WEEKDAY_NAMES[new Date(b.date+'T12:00:00').getDay()]}）｜第 ${b.lesson} 節｜${b.device_type} × ${b.quantity}｜${b.class}｜${labels[b.status]||b.status}`;items.append(p)}
    if(!relevant.length)items.textContent='本週暫無借用記錄。';el('previewReminder').classList.remove('hidden');el('previewReminder').querySelector('button').focus();
   }catch(e){console.warn('借用提醒未能載入：',e.message)}
  };

@@ -111,7 +111,7 @@ function formatDateWithWeekday(dateStr) {
   if (!dateStr) return '';
   const parts = dateStr.split('-');
   const d = new Date(parts[0], parts[1] - 1, parts[2]);
-  return `${dateStr} (${WEEKDAY_NAMES[d.getDay()]})`;
+  return `${window.schoolDates.format(dateStr)} (${WEEKDAY_NAMES[d.getDay()]})`;
 }
 
 // ================= 2. 身分認證與權限控制 =================

@@ -156,7 +156,7 @@
     filtered.forEach(b => {
       const row = document.createElement('tr'); row.dataset.bookingId = b.id;
       const [label,color] = statuses[b.status] || ['未識別狀態',''];
-      const values = [b.date, LESSON_NAMES[b.lesson] || `第 ${b.lesson} 節`,
+      const values = [window.schoolDates.format(b.date), LESSON_NAMES[b.lesson] || `第 ${b.lesson} 節`,
         b.device_type === 'Mobile' ? '手機' : b.device_type, `${b.quantity} 部`,
         b.class || '—', b.subject || b.usage_type || '—', b.room || '—', label, b.remarks || '—'];
       values.forEach((value, index) => {

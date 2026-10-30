@@ -8,6 +8,8 @@
  function clampMonth(date){const month=new Date(date.getFullYear(),date.getMonth(),1);return month>latestMonth()?latestMonth():month}
  function assertBookable(date){if(date>MAX_DATE)throw Error(message)}
  function canCancel(booking,isAdmin=false){return isAdmin||(booking.date>today()&&['pending','waiting'].includes(booking.status))}
+ function canEditQuantity(booking,isAdmin=false){return ['pending','waiting'].includes(booking.status)&&(isAdmin||booking.date>today())}
+ function assertCanEditQuantity(booking,isAdmin=false){if(!canEditQuantity(booking,isAdmin))throw Error('已過修改及取消期限，請聯絡管理員。')}
  function assertCanCancel(booking,isAdmin=false){if(!canCancel(booking,isAdmin))throw Error('最遲須於借用日前一天取消；借用當日不可自行取消，請聯絡管理員。')}
  function updateBounds(){
   ['selectDate','dashboard-date-picker','batchDate'].forEach(id=>{const input=document.getElementById(id);if(input){input.max=MAX_DATE;if(input.value>MAX_DATE)input.value=MAX_DATE}});
@@ -15,9 +17,9 @@
   const selected=document.getElementById('selectDate');const next=document.getElementById('dashboard-next-day');if(next&&selected)next.disabled=selected.value>=MAX_DATE;
   const monthNext=document.getElementById('calendar-next-month');if(monthNext&&typeof calendarDate!=='undefined')monthNext.disabled=calendarDate.getFullYear()===2026&&calendarDate.getMonth()===11;
  }
- window.bookingDateRules=Object.freeze({maxDate:MAX_DATE,message,today,clampDate,latestMonth,clampMonth,assertBookable,canCancel,assertCanCancel,updateBounds});
+ window.bookingDateRules=Object.freeze({maxDate:MAX_DATE,message,today,clampDate,latestMonth,clampMonth,assertBookable,canCancel,assertCanCancel,canEditQuantity,assertCanEditQuantity,updateBounds});
  document.addEventListener('DOMContentLoaded',()=>{
   updateBounds();let previousDay=today();
-  setInterval(()=>{const day=today();if(day!==previousDay){previousDay=day;updateBounds();if(typeof renderTable==='function')renderTable()}},30000);
+  setInterval(()=>{const day=today();if(day!==previousDay){previousDay=day;updateBounds();if(typeof renderTable==='function')renderTable();window.dispatchEvent(new Event('ipad:school-day-changed'))}},30000);
  });
 })();

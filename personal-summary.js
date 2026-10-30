@@ -95,7 +95,7 @@
           <th scope="col">班別</th><th scope="col">科目／用途</th><th scope="col">地點</th><th scope="col">狀態</th><th scope="col">備註</th><th scope="col" class="personal-actions">操作</th>
         </tr></thead><tbody id="personal-rows"></tbody></table>
       </div>
-      <p style="margin-top:12px;font-size:12px;color:#64748b">上方統計涵蓋所有個人記錄；下方總表按篩選結果顯示。每個日期及課節各佔一筆。最遲須於借用日前一天取消；借用當日只可增加數量，不能自行取消或減少數量。機種按登記用途顯示，實際派機以圖書館安排為準。</p>
+      <p style="margin-top:12px;font-size:12px;color:#64748b">上方統計涵蓋所有個人記錄；下方總表按篩選結果顯示。每個日期及課節各佔一筆。同事最遲須於借用日前一天修改數量或取消；借用當日及過去日期已過修改及取消期限。機種按登記用途顯示，實際派機以圖書館安排為準。</p>
     `;
     document.querySelector('main').append(section);
     byId('personal-refresh').addEventListener('click', refresh);
@@ -184,12 +184,12 @@
       const editable = ['pending','waiting'].includes(b.status);
       const isAdmin = typeof isCurrentUserAdmin !== 'undefined' && isCurrentUserAdmin;
       const today = window.bookingDateRules.today();
-      if (editable && (isAdmin || b.date >= today)) addAction(buttons, '修改數量', b.id, 'editQuantity');
+      if (window.bookingDateRules.canEditQuantity(b,isAdmin)) addAction(buttons, '修改數量', b.id, 'editQuantity');
       if (editable && window.bookingDateRules.canCancel(b,isAdmin)) addAction(buttons, '取消借用', b.id, 'deleteBooking');
       if (!editable || (!isAdmin && b.date <= today)) {
         const note = document.createElement('span'); note.className = 'personal-action-note';
-        note.textContent = !editable ? '此狀態如需更改，請聯絡管理員。'
-          : b.date === today ? '當日不可取消或減少數量。' : '已過修改及取消期限。';
+        note.textContent = !isAdmin && b.date <= today ? '已過修改及取消期限。'
+          : '此狀態如需更改，請聯絡管理員。';
         actions.append(note);
       }
       row.append(actions); body.append(row);
@@ -250,6 +250,7 @@
     byId('personal-identity').textContent = currentUser?.email || '尚未登入';
     if (isVisible()) refresh();
   };
+  window.addEventListener('ipad:school-day-changed', () => { if (byId('personal-section')) renderRows(); });
   window.addEventListener('preview:data-change', () => { if (isVisible()) refresh(); });
   window.addEventListener('focus', () => { if (isVisible()) refresh(); });
   document.addEventListener('visibilitychange', () => { if (!document.hidden && isVisible()) refresh(); });

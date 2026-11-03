@@ -42,6 +42,19 @@
 
 #calendar-next-month:disabled, #dashboard-next-day:disabled { opacity: .3; cursor: not-allowed; }
 
+.daily-booking-list{align-self:start;min-width:0;height:auto}
+.daily-lesson-filter{display:flex;align-items:center;gap:12px;margin-bottom:16px;font-size:14px;font-weight:700;color:#334155}
+.daily-lesson-filter select{min-height:44px;padding:9px 36px 9px 12px;border:1px solid #dbe4ec;border-radius:10px;background:#f8fafc;color:#334155;font:inherit}
+.daily-booking-scroll{flex:none;min-height:0;max-height:1100px;overflow:auto;box-sizing:border-box}
+.daily-booking-scroll thead{position:sticky;top:0;z-index:1}
+.admin-booking-search{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:18px;color:#334155}
+.admin-booking-search label{display:block;font-size:14px;font-weight:700;margin-bottom:8px}
+.admin-search-controls{display:flex;gap:10px;flex-wrap:wrap}
+.admin-search-controls input{flex:1 1 240px;min-width:0;min-height:44px;padding:10px 14px;border:1px solid #cbd5e1;border-radius:10px;color:#334155;background:#f8fafc;font:inherit}
+.admin-search-controls button{min-height:44px;padding:9px 16px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;color:#0f766e;font-weight:700;cursor:pointer}
+.admin-booking-search p{font-size:12px;line-height:1.6;color:#64748b;margin:8px 0 0}
+#adminSearchCount{font-size:13px}
+
 /* Homepage weekly borrowing and missed-pickup reminder. */
 .reminder-overlay,.reminder-overlay *{box-sizing:border-box}
 .reminder-overlay{position:fixed;inset:0;z-index:9998;display:flex;align-items:center;justify-content:center;padding:16px;background:#0f172a80;backdrop-filter:blur(4px)}

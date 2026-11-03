@@ -19,7 +19,8 @@ try{
  await page.setContent('<!doctype html><html lang="zh-HK"><head><style>*{box-sizing:border-box}body{margin:0;font-family:sans-serif}main{max-width:1200px;margin:auto}.hidden{display:none}</style></head><body><main></main></body></html>');
  for(const file of ['fixtures/personal-summary-browser.js','../booking-date-rules.js','../booking-enhancements.js','../personal-summary.js'])await page.addScriptTag({path:fileURLToPath(new URL(file,import.meta.url))});
  await page.evaluate(()=>{document.dispatchEvent(new Event('DOMContentLoaded'));document.getElementById('personal-section').classList.remove('hidden');return previewRefreshPersonal()});await settled();
- assert.equal(await page.locator('#personal-rows tr').count(),7);assert.equal(await row('other').count(),0);assert.equal(await row('alias').count(),1);
+ assert.equal(await page.locator('#personal-range').inputValue(),'week');assert.equal(await page.locator('#personal-start').inputValue(),'2026-10-26');assert.equal(await page.locator('#personal-end').inputValue(),'2026-11-01');assert.equal(await page.locator('#personal-rows tr[data-booking-id]').count(),6);
+ await page.selectOption('#personal-range','all');assert.equal(await page.locator('#personal-rows tr').count(),7);assert.equal(await row('other').count(),0);assert.equal(await row('alias').count(),1);
  assert.match(await row('future').innerText(),/普通機/);assert.match(await row('wait').innerText(),/較高性能機/);assert.match(await row('unknown').innerText(),/未註明/);assert.equal(await row('unknown').locator('img').count(),0);
  for(const id of ['future','wait','alias']){assert.equal(await row(id).getByRole('button',{name:'修改數量',exact:true}).count(),1);assert.equal(await row(id).getByRole('button',{name:'取消借用',exact:true}).count(),1)}
  assert.equal(await row('today').getByRole('button').count(),0);assert.match(await row('today').innerText(),/已過修改及取消期限/);for(const id of ['past','returned'])assert.equal(await row(id).getByRole('button').count(),0);
@@ -36,7 +37,7 @@ try{
  await page.evaluate(()=>failCancel=false);await row('future').getByRole('button',{name:'取消借用',exact:true}).click();await page.waitForFunction(()=>!testDB.bookings.some(b=>b.id==='future'));await settled();assert.equal(await row('future').count(),0);assert.equal(await page.evaluate(()=>testWrites.filter(w=>w.operation==='rpc')[0].name),'ipad_cancel_booking_before_day_v1');
  assert.equal(await page.locator('[data-status="all"]').textContent(),'6');
  pass('取消需確認；失敗保留記錄；成功沿用受保護RPC並更新統計');
- await page.click('#personal-reset');await settled();await page.evaluate(()=>editQuantity('today'));await settled();assert.equal(await page.evaluate(()=>testDB.bookings.find(b=>b.id==='today').quantity),10);assert.match(alerts.at(-1),/已過修改及取消期限/);
+ await page.click('#personal-reset');await settled();assert.equal(await page.locator('#personal-range').inputValue(),'week');await page.evaluate(()=>editQuantity('today'));await settled();assert.equal(await page.evaluate(()=>testDB.bookings.find(b=>b.id==='today').quantity),10);assert.match(alerts.at(-1),/已過修改及取消期限/);
  promptAnswer='0';await row('wait').getByRole('button',{name:'修改數量',exact:true}).click();await settled();assert.match(alerts.at(-1),/有效正整數/);
  promptAnswer='20';await row('wait').getByRole('button',{name:'修改數量',exact:true}).click();await page.waitForFunction(()=>testDB.bookings.find(b=>b.id==='wait').quantity===20);await settled();
  promptAnswer='200';await row('alias').getByRole('button',{name:'修改數量',exact:true}).click();await settled();assert.match(alerts.at(-1),/庫存不足/);assert.equal(await page.evaluate(()=>testDB.bookings.find(b=>b.id==='alias').quantity),10);

@@ -3,6 +3,8 @@ window.currentUser={id:'teacher-a',email:'teacher@example.invalid'};
 window.isCurrentUserAdmin=false;
 window.LESSON_NAMES={1:'第一節',2:'第二節'};
 window.WEEKDAY_NAMES=['星期日','星期一','星期二','星期三','星期四','星期五','星期六'];
+// Date widgets are exercised by the full-page browser tests; action fixtures use ISO text.
+window.schoolDates={format:value=>value};
 const booking=(id,date,status,usage_type='basic',extra={})=>({id,date,status,usage_type,lesson:1,teacher_name:'Teacher A',device_type:'iPad',quantity:10,class:'1A',subject:'ICT',room:'Room 1',remarks:'',created_at:'2026-10-20T00:00:00Z',...extra});
 window.testDB={
  bookings:[booking('future','2026-10-30','pending'),booking('wait','2026-10-31','waiting','interactive'),booking('today','2026-10-29','pending'),booking('past','2026-10-28','pending'),booking('returned','2026-10-27','returned','interactive'),booking('alias','2026-11-01','pending','interactive',{teacher_name:'Teacher A alias',user_email:'admin@example.invalid'}),booking('other','2026-11-02','pending','basic',{teacher_name:'Teacher B',user_email:currentUser.email}),booking('unknown','2026-11-03','pending',null,{subject:'<img src=x onerror=window.badRender=true>'})],

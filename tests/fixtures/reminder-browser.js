@@ -2,12 +2,13 @@
 (() => {
   const users = {
     a: { id: 'teacher-a', email: 'a@example.invalid' },
-    b: { id: 'teacher-b', email: 'b@example.invalid' }
+    b: { id: 'teacher-b', email: 'b@example.invalid' },
+    admin: { id: 'admin', email: 'admin@example.invalid' }
   };
   let user = users[localStorage.getItem('reminder-test-user') || 'a'] || null;
   let authCallback;
   const db = {
-    admins: [],
+    admins: [{ email: users.admin.email }],
     teachers: [
       { id: 'a', name: 'Teacher A', email: users.a.email, missed_count: 0 },
       { id: 'alias', name: 'Teacher A alias', email: users.a.email },
@@ -28,10 +29,10 @@
   window.reminderTestDB = db;
   window.reminderTestReads = 0;
   function from(table) {
-    let filters = [], offset = 0, end = Infinity;
+    let filters = [], offset = 0, end = Infinity, dateFilter = '';
     const q = {
       select() { return q; }, order() { return q; },
-      eq(k, v) { filters.push(b => b[k] === v); return q; },
+      eq(k, v) { if(k === 'date') dateFilter = v; filters.push(b => b[k] === v); return q; },
       ilike(k, v) { filters.push(b => String(b[k]).toLowerCase() === v.toLowerCase()); return q; },
       gte(k, v) { filters.push(b => b[k] >= v); return q; },
       lte(k, v) { filters.push(b => b[k] <= v); return q; },
@@ -39,7 +40,10 @@
       range(a, b) { offset = a; end = b; return q; },
       then(resolve, reject) {
         window.reminderTestReads++;
-        return Promise.resolve({ data: structuredClone(db[table].filter(b => filters.every(f => f(b))).slice(offset, end + 1)), error: null }).then(resolve, reject);
+        const result = { data: structuredClone(db[table].filter(b => filters.every(f => f(b))).slice(offset, end + 1)), error: null };
+        if (table === 'bookings' && window.listTestFailBookings) result.error = { message: '測試載入失敗' };
+        const delay = table === 'bookings' ? window.listTestDelayByDate?.[dateFilter] || 0 : 0;
+        return (delay ? new Promise(done => setTimeout(() => done(result), delay)) : Promise.resolve(result)).then(resolve, reject);
       }
     };
     return q;

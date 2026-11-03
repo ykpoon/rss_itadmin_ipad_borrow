@@ -381,7 +381,7 @@
         </section>
 
         <!-- 當日借用清單 -->
-        <section class="lg:col-span-7 tech-card rounded-2xl p-6 transition duration-300 flex flex-col h-[600px]">
+        <section class="lg:col-span-7 tech-card rounded-2xl p-6 transition duration-300 flex flex-col daily-booking-list">
           <div class="flex items-center justify-between mb-5 pb-3 border-b border-slate-100">
             <h2 class="text-base font-bold text-slate-800 flex items-center gap-2">
               <i class="fa-solid fa-clipboard-list text-teal-500"></i>
@@ -390,7 +390,16 @@
             <span id="recordCount" class="text-xs bg-slate-100 text-slate-600 font-bold px-3 py-1.5 rounded-full">共 0 筆記錄</span>
           </div>
 
-          <div class="overflow-y-auto flex-1 scrollbar-thin booking-table-wrap">
+          <label class="daily-lesson-filter" for="dailyLessonFilter">查看課節
+            <select id="dailyLessonFilter">
+              <option value="all">全部課節</option>
+              <option value="1">第 1 節</option><option value="2">第 2 節</option>
+              <option value="3">第 3 節</option><option value="4">第 4 節</option>
+              <option value="5">第 5 節</option><option value="6">第 6 節</option>
+              <option value="7">第 7 節</option>
+            </select>
+          </label>
+          <div class="scrollbar-thin booking-table-wrap daily-booking-scroll">
             <!-- 💡 表格字型放大至 text-sm -->
             <table class="w-full text-left text-sm text-slate-600 booking-table">
               <thead class="bg-slate-50/80 text-slate-700 font-bold sticky top-0 border-b border-slate-200">

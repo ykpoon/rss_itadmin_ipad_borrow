@@ -179,12 +179,38 @@
   if(!user?.email||!el('previewReminder'))return;
   try{
    const data=await loadMine();if(typeof currentUser==='undefined'||currentUser?.id!==user.id)return;
-   const now=new Date(),monday=new Date(now.getFullYear(),now.getMonth(),now.getDate()-((now.getDay()+6)%7)),sunday=new Date(monday);sunday.setDate(sunday.getDate()+6);
-   const fmt=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`,start=fmt(monday),end=fmt(sunday);
+   // Use the school day even when a teacher's device is in another timezone.
+   const monday=new Date(window.bookingDateRules.today()+'T12:00:00Z');monday.setUTCDate(monday.getUTCDate()-((monday.getUTCDay()+6)%7));
+   const sunday=new Date(monday);sunday.setUTCDate(sunday.getUTCDate()+6);
+   const start=monday.toISOString().slice(0,10),end=sunday.toISOString().slice(0,10);
    el('previewReminderRange').textContent=`${window.schoolDates.format(start)} 至 ${window.schoolDates.format(end)}`;const items=el('previewReminderItems');items.replaceChildren();
-   const relevant=data.filter(b=>b.date>=start&&b.date<=end);
-   for(const b of relevant){const p=document.createElement('div');p.className='p-3 bg-slate-50 border rounded-xl';p.textContent=`${window.schoolDates.format(b.date)}（${WEEKDAY_NAMES[new Date(b.date+'T12:00:00').getDay()]}）｜第 ${b.lesson} 節｜${b.device_type} × ${b.quantity}｜${b.class}｜${labels[b.status]||b.status}`;items.append(p)}
-   if(!relevant.length)items.textContent='本週暫無借用記錄。';el('previewReminder').classList.remove('hidden');el('previewReminder').querySelector('button').focus();
+   const relevant=data.filter(b=>b.date>=start&&b.date<=end).sort((a,b)=>a.date.localeCompare(b.date)||Number(a.lesson)-Number(b.lesson)||String(a.id).localeCompare(String(b.id)));
+   const missed=relevant.filter(b=>b.status==='missed'),other=relevant.filter(b=>b.status!=='missed');
+   const node=(tag,cls,text)=>{const n=document.createElement(tag);n.className=cls;if(text!==undefined)n.textContent=text;return n};
+   const row=(b,isMissed)=>{
+    const r=node('div',isMissed?'reminder-missed-row':'reminder-booking'),details=node('div','reminder-details');
+    details.append(node('div','reminder-date',`${window.schoolDates.format(b.date)}（${WEEKDAY_NAMES[new Date(b.date+'T12:00:00Z').getUTCDay()]}） · 第 ${b.lesson} 節`),node('div','reminder-sub',`${b.device_type} × ${b.quantity} 部${b.class?' · '+b.class:''}`));
+    r.append(details,node('span',isMissed?'reminder-missed-status':`reminder-status reminder-status--${Object.hasOwn(labels,b.status)?b.status:'unknown'}`,isMissed?'已欠取機':labels[b.status]||b.status));return r;
+   };
+   el('reminderTitle').textContent=missed.length?'🔔 本週借用及欠取提醒':'🔔 本週設備借用提醒';
+   if(missed.length){
+    const alert=node('section','reminder-alert');alert.setAttribute('aria-labelledby','reminderMissedTitle');
+    const head=node('div','reminder-alert-head'),heading=node('h3','','⚠ 本週欠取通知');heading.id='reminderMissedTitle';
+    const count=node('span','reminder-week-count',`本週 ${missed.length} 次`);count.id='reminderMissedWeekCount';head.append(heading,count);
+    const total=node('div','reminder-total'),label=node('div','reminder-total-label','歷來累積欠取');label.append(node('span','reminder-total-note','包含本週及過往所有欠取記錄'));
+    // The administrative missed_count can be reset. Count all retained missed
+    // bookings instead, including aliases and delegated bookings from loadMine().
+    const number=node('div','reminder-total-number',String(data.filter(b=>b.status==='missed').length));number.id='reminderMissedTotal';number.append(node('small','','次'));total.append(label,number);
+    const list=node('div','reminder-missed-list');list.id='reminderMissedItems';for(const b of missed)list.append(row(b,true));
+    alert.append(head,total,list);items.append(alert);
+   }
+   if(other.length){
+    const section=node('section','reminder-other');section.append(node('h3','reminder-section-title',missed.length?'本週其他借用':'本週設備借用'));
+    for(const b of other)section.append(row(b,false));items.append(section);
+   }
+   if(!relevant.length)items.textContent='本週暫無借用記錄。';
+   if(missed.length)items.append(node('p','reminder-note','如無法如期取機，請於借用日前取消預約。如欠取記錄有誤，請聯絡管理員核對。'));
+   el('previewReminder').classList.remove('hidden');el('previewReminder').querySelector('button').focus();
   }catch(e){console.warn('借用提醒未能載入：',e.message)}
  };
  document.addEventListener('DOMContentLoaded',()=>{

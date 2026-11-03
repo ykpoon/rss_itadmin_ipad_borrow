@@ -86,11 +86,11 @@
   </style>
 
 
-<div id="previewReminder" role="dialog" aria-modal="true" aria-labelledby="reminderTitle" class="hidden fixed inset-0 z-[9998] bg-slate-900/50 flex items-center justify-center px-4 backdrop-blur-sm">
-  <div class="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl transition-all animate-[pulse_0.4s_ease-out]">
-    <div class="flex justify-between items-start"><h2 id="reminderTitle" class="text-xl font-extrabold text-teal-800">🔔 本週設備借用提醒</h2><button type="button" onclick="previewHideReminder()" aria-label="關閉提醒" class="text-slate-500 text-2xl">×</button></div>
-    <p id="previewReminderRange" class="text-sm text-slate-500 mt-2"></p><div id="previewReminderItems" class="mt-4 space-y-2 max-h-72 overflow-auto"></div>
-    <button type="button" onclick="previewHideReminder()" class="w-full mt-5 bg-teal-600 text-white py-3 rounded-xl font-bold">明白，返回系統</button>
+<div id="previewReminder" role="dialog" aria-modal="true" aria-labelledby="reminderTitle" aria-describedby="previewReminderRange" class="hidden reminder-overlay">
+  <div class="reminder-dialog">
+    <div class="reminder-header"><h2 id="reminderTitle">🔔 本週設備借用提醒</h2><button type="button" onclick="previewHideReminder()" aria-label="關閉提醒" class="reminder-close">×</button></div>
+    <p id="previewReminderRange" class="reminder-range"></p><div id="previewReminderItems" class="reminder-body"></div>
+    <button type="button" onclick="previewHideReminder()" class="reminder-confirm">明白，返回系統</button>
   </div>
 </div>
 

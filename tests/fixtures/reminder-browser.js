@@ -9,7 +9,7 @@
   const db = {
     admins: [],
     teachers: [
-      { id: 'a', name: 'Teacher A', email: users.a.email },
+      { id: 'a', name: 'Teacher A', email: users.a.email, missed_count: 0 },
       { id: 'alias', name: 'Teacher A alias', email: users.a.email },
       { id: 'b', name: 'Teacher B', email: users.b.email }
     ],
@@ -19,7 +19,10 @@
       { id: 'mine', teacher_name: 'Teacher A', date: '2026-11-03', lesson: 1, quantity: 12, class: '1A', device_type: 'iPad', status: 'pending', usage_type: 'basic' },
       { id: 'alias', teacher_name: 'Teacher A alias', date: '2026-11-04', lesson: 2, quantity: 5, class: '2A', device_type: 'Mobile', status: 'waiting', usage_type: 'basic' },
       { id: 'other', teacher_name: 'Teacher B', date: '2026-11-05', lesson: 3, quantity: 8, class: '3B', device_type: 'iPad', status: 'pending', usage_type: 'interactive' },
-      { id: 'outside-week', teacher_name: 'Teacher A', date: '2026-11-12', lesson: 1, quantity: 99, class: '4A', device_type: 'iPad', status: 'pending', usage_type: 'basic' }
+      { id: 'outside-week', teacher_name: 'Teacher A', date: '2026-11-12', lesson: 1, quantity: 99, class: '4A', device_type: 'iPad', status: 'pending', usage_type: 'basic' },
+      { id: 'missed-this-week', teacher_name: 'Teacher A', date: '2026-11-02', lesson: 1, quantity: 20, class: '2A', device_type: 'iPad', status: 'missed' },
+      { id: 'missed-alias', teacher_name: 'Teacher A alias', user_email: 'admin@example.invalid', date: '2026-11-03', lesson: 3, quantity: 10, class: '3B', device_type: 'Mobile', status: 'missed' },
+      ...['2026-10-12', '2026-10-19', '2026-10-26'].map((date, i) => ({ id: 'missed-history-' + i, teacher_name: 'Teacher A', date, lesson: 1, quantity: 30, class: 'OLD', device_type: 'iPad', status: 'missed' }))
     ]
   };
   window.reminderTestDB = db;

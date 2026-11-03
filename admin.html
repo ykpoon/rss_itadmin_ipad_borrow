@@ -148,6 +148,16 @@
         </div>
       </div>
 
+      <div class="admin-booking-search">
+        <label for="adminBookingSearch">搜尋借用記錄</label>
+        <div class="admin-search-controls">
+          <input id="adminBookingSearch" type="search" placeholder="老師名、第3節、班別、設備、狀態…" autocomplete="off" aria-describedby="adminSearchHint adminSearchCount">
+          <button id="adminBookingSearchClear" type="button">清除搜尋</button>
+        </div>
+        <p id="adminSearchHint">搜尋所選審核日期的記錄；多個關鍵字以空格分隔，例如「陳 第3節」。上方狀態統計按搜尋結果計算。</p>
+        <p id="adminSearchCount" role="status" aria-live="polite"></p>
+      </div>
+
       <div class="tech-card rounded-2xl overflow-hidden p-4">
         <div class="overflow-x-auto">
           <table class="w-full text-left text-sm text-slate-600">

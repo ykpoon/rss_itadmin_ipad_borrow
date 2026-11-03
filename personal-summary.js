@@ -10,7 +10,7 @@
   const byId = id => document.getElementById(id);
   const isVisible = () => !byId('personal-section')?.classList.contains('hidden');
   const emailKey = value => String(value || '').trim().toLowerCase();
-  const dateKey = date => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+  const dateKey = date => date.toISOString().slice(0,10);
   function buildSection() {
     if (window.IPAD_ENV?.features?.personal === false) {
       byId('tabBtn-personal').classList.add('hidden'); return;
@@ -74,7 +74,7 @@
       <div id="personal-cards" class="personal-cards" aria-label="所有個人借用記錄統計"></div>
       <div class="personal-filters">
         <label>日期範圍<select id="personal-range">
-          <option value="all">全部日期</option><option value="week">本週</option>
+          <option value="week">本週</option><option value="all">全部日期</option>
           <option value="month">本月</option><option value="upcoming">今天及以後</option>
           <option value="custom">自訂日期</option>
         </select></label>
@@ -105,20 +105,20 @@
     }));
     ['personal-status','personal-device'].forEach(id => byId(id).addEventListener('change', renderRows));
     byId('personal-reset').addEventListener('click', () => {
-      byId('personal-range').value = 'all'; byId('personal-status').value = 'all';
+      byId('personal-range').value = 'week'; byId('personal-status').value = 'all';
       byId('personal-device').value = 'all'; applyRange();
     });
-    renderCards(); emptyRows('請先登入，再查看自己的借用記錄。');
+    applyRange(); renderCards(); emptyRows('請先登入，再查看自己的借用記錄。');
   }
   function applyRange() {
-    const range = byId('personal-range').value, now = new Date();
+    const range = byId('personal-range').value, now = new Date(window.bookingDateRules.today()+'T12:00:00Z');
     let start = '', end = '';
     if (range === 'week') {
-      const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay()+6)%7));
-      start = dateKey(monday); monday.setDate(monday.getDate()+6); end = dateKey(monday);
+      const monday = new Date(now); monday.setUTCDate(monday.getUTCDate()-((monday.getUTCDay()+6)%7));
+      start = dateKey(monday); monday.setUTCDate(monday.getUTCDate()+6); end = dateKey(monday);
     } else if (range === 'month') {
-      start = dateKey(new Date(now.getFullYear(), now.getMonth(), 1));
-      end = dateKey(new Date(now.getFullYear(), now.getMonth()+1, 0));
+      start = dateKey(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)));
+      end = dateKey(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth()+1, 0)));
     } else if (range === 'upcoming') start = dateKey(now);
     else if (range === 'custom') { renderRows(); return; }
     byId('personal-start').value = start; byId('personal-end').value = end; renderRows();
@@ -250,7 +250,7 @@
     byId('personal-identity').textContent = currentUser?.email || '尚未登入';
     if (isVisible()) refresh();
   };
-  window.addEventListener('ipad:school-day-changed', () => { if (byId('personal-section')) renderRows(); });
+  window.addEventListener('ipad:school-day-changed', () => { if (byId('personal-section')) applyRange(); });
   window.addEventListener('preview:data-change', () => { if (isVisible()) refresh(); });
   window.addEventListener('focus', () => { if (isVisible()) refresh(); });
   document.addEventListener('visibilitychange', () => { if (!document.hidden && isVisible()) refresh(); });

@@ -135,19 +135,30 @@ async function checkAuth() {
     const { data: { session } } = await _supabase.auth.getSession();
     await updateAuthUI(session?.user || null);
 
+    // In-memory only: a page refresh should show the reminder again, while
+    // repeated auth/token events on this page should not reopen a closed dialog.
+    let reminderUserId = null;
+    function showReminderForSession(user) {
+      if (!user?.id) {
+        reminderUserId = null;
+        window.previewHideReminder?.();
+        return;
+      }
+      if (reminderUserId === user.id) return;
+      reminderUserId = user.id;
+      window.previewHideReminder?.();
+      window.previewShowReminder?.(user);
+    }
+
     _supabase.auth.onAuthStateChange((_event, session) => {
       setTimeout(async()=>{
-        await updateAuthUI(session?.user || null); await loadTeachers();
+        await updateAuthUI(session?.user || null);
+        showReminderForSession(session?.user);
+        await loadTeachers();
         await fetchAndRender(); await fetchMonthlyData(); renderTable();
-        if(_event==='SIGNED_OUT') window.previewHideReminder?.();
-        if(_event==='SIGNED_IN' && session?.user && sessionStorage.getItem('ipad-login-reminder')==='1') {
-          sessionStorage.removeItem('ipad-login-reminder'); window.previewShowReminder?.(session.user);
-        }
       },0);
     });
-    if(session?.user && sessionStorage.getItem('ipad-login-reminder')==='1') {
-      sessionStorage.removeItem('ipad-login-reminder'); setTimeout(()=>window.previewShowReminder?.(session.user),80);
-    }
+    showReminderForSession(session?.user);
 
   } catch (e) {
     console.error("Auth 初始化錯誤:", e);
@@ -190,7 +201,6 @@ async function updateAuthUI(user) {
 }
 
 window.loginWithGoogle = async function() {
-  sessionStorage.setItem('ipad-login-reminder','1');
   try {
     const { error } = await _supabase.auth.signInWithOAuth({
       provider: 'google',

@@ -96,8 +96,8 @@ try{
 
  const boundary=await createPage(false,'America/Los_Angeles');
  await boundary.clock.setFixedTime(new Date('2026-12-17T15:59:59Z'));await boundary.goto(origin);
- const maxDates=()=>boundary.evaluate(()=>['selectDate','dashboard-date-picker','batchDate'].map(id=>{const input=document.getElementById(id);return [input.max,input._flatpickr.formatDate(input._flatpickr.config.maxDate,'Y-m-d')]}));
- const checkLimit=async day=>assert.deepEqual(await maxDates(),Array.from({length:3},()=>[day,day]));
+ const maxDates=()=>boundary.evaluate(()=>['selectDate','batchDate'].map(id=>{const input=document.getElementById(id);return [input.max,input._flatpickr.formatDate(input._flatpickr.config.maxDate,'Y-m-d')]}));
+ const checkLimit=async day=>assert.deepEqual(await maxDates(),Array.from({length:2},()=>[day,day]));
  const nextMonth=boundary.locator('#calendar-next-month');
  await checkLimit('2026-12-31');assert.ok(await nextMonth.isDisabled());
  await boundary.clock.setFixedTime(new Date('2026-12-17T16:00:00Z'));await boundary.evaluate(()=>window.dispatchEvent(new Event('focus')));

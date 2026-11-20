@@ -92,5 +92,25 @@ try{
  const remote=await createPage(false,'America/Los_Angeles');await remote.clock.setFixedTime(new Date('2026-11-02T00:30:00Z'));await remote.goto(origin);await remote.waitForSelector('#personal-start',{state:'attached'});
  assert.equal(await remote.locator('#personal-start').inputValue(),'2026-11-02');assert.equal(await remote.locator('#personal-end').inputValue(),'2026-11-08');
  await remote.clock.setFixedTime(new Date('2026-11-09T00:30:00Z'));await remote.evaluate(()=>window.dispatchEvent(new Event('ipad:school-day-changed')));assert.equal(await remote.locator('#personal-start').inputValue(),'2026-11-09');await remote.close();
- assert.deepEqual(errors,[]);pass('Default week follows Hong Kong time and updates at a new school week; no browser errors');
+ pass('Default week follows Hong Kong time and updates at a new school week');
+
+ const boundary=await createPage(false,'America/Los_Angeles');
+ await boundary.clock.setFixedTime(new Date('2026-12-17T15:59:59Z'));await boundary.goto(origin);
+ const maxDates=()=>boundary.evaluate(()=>['selectDate','batchDate'].map(id=>{const input=document.getElementById(id);return [input.max,input._flatpickr.formatDate(input._flatpickr.config.maxDate,'Y-m-d')]}));
+ const checkLimit=async day=>assert.deepEqual(await maxDates(),Array.from({length:2},()=>[day,day]));
+ const nextMonth=boundary.locator('#calendar-next-month');
+ await checkLimit('2026-12-31');assert.ok(await nextMonth.isDisabled());
+ await boundary.clock.setFixedTime(new Date('2026-12-17T16:00:00Z'));await boundary.evaluate(()=>window.dispatchEvent(new Event('focus')));
+ await checkLimit('2027-01-01');assert.ok(await nextMonth.isEnabled());
+ await boundary.evaluate(()=>changeMonth(1));
+ const closed=day=>boundary.locator(`[data-closed-date="${day}"]`);
+ assert.equal(await closed('2027-01-01').count(),0);
+ assert.match(await closed('2027-01-02').textContent(),/19\/12\/2026 開放/);
+ assert.equal(await boundary.locator('[data-date="2027-01-02"]').count(),0);
+ await boundary.clock.setFixedTime(new Date('2026-12-18T16:00:00Z'));await boundary.evaluate(()=>window.dispatchEvent(new Event('focus')));
+ await checkLimit('2027-01-02');assert.equal(await closed('2027-01-02').count(),0);assert.match(await closed('2027-01-03').textContent(),/20\/12\/2026 開放/);
+ for(const page of [boundary,admin])assert.equal(await page.locator('link[rel="icon"]').getAttribute('href'),'booking-icon.svg');
+ assert.match(await (await boundary.request.get(origin+'/booking-icon.svg')).text(),/<svg/);
+ await boundary.close();
+ assert.deepEqual(errors,[]);pass('Pickers and monthly calendar unlock one date at each Hong Kong midnight; both pages use the new favicon');
 }finally{await browser.close();await new Promise(done=>server.close(done))}

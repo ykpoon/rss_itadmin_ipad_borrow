@@ -15,7 +15,7 @@ const WEEKDAY_NAMES = ['星期日', '星期一', '星期二', '星期三', '星�
 
 let currentBookings = [];
 let teachersList = []; // 充當本地快取（Cache），避免重複請求資料庫
-let calendarDate = window.bookingDateRules.clampMonth(new Date()); // 紀錄月曆當前顯示的年月
+let calendarDate = window.bookingDateRules.clampMonth(new Date(window.bookingDateRules.today()+'T12:00:00')); // 紀錄月曆當前顯示的年月
 let monthlyBookings = [];      // 儲存當月所有的借用記錄以便統計
 
 // ================= 1. 初始化與事件監聽 =================
@@ -639,13 +639,24 @@ function renderCalendar() {
   }
 
   const LESSON_SHORTS = { 1: '第 1 節', 2: '第 2 節', 3: '第 3 節', 4: '第 4 節', 5: '第 5 節', 6: '第 6 節', 7: '第 7 節' };
+  const maxDate = window.bookingDateRules.maxDate;
 
   for (let day = 1; day <= totalDays; day++) {
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    if (dateStr > maxDate) {
+      const card = document.createElement('div');
+      card.className = 'border border-slate-100 rounded-lg p-2.5 h-44 bg-slate-50 text-slate-500';
+      card.dataset.closedDate = dateStr;
+      const heading = document.createElement('div'), notice = document.createElement('div');
+      heading.className = 'text-xs font-bold'; heading.textContent = `${day} 日 · 未開放`;
+      notice.className = 'mt-2 text-xs'; notice.textContent = `${window.schoolDates.format(window.bookingDateRules.openingDate(dateStr))} 開放`;
+      card.append(heading,notice);grid.appendChild(card);continue;
+    }
     const dayBookings = monthlyBookings.filter(b => b.date === dateStr && !['waiting','returned'].includes(b.status) && !(b.remarks && b.remarks.includes('[候補]')));
 
     const card = document.createElement('div');
     card.onclick = () => {
+      if (dateStr > window.bookingDateRules.maxDate) return;
       const selectDateEl = document.getElementById('selectDate');
       if (selectDateEl) {
         selectDateEl.value = dateStr;

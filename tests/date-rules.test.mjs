@@ -94,5 +94,32 @@ test('date cutoff, cancellation authorization and atomic queue promotion',async 
   const rows=(await db.query("select prosecdef,proconfig from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='ipad_date_rules' or p.proname='ipad_cancel_booking_before_day_v1'")).rows;
   assert.ok(rows.every(r=>!r.prosecdef&&r.proconfig.some(c=>c.startsWith('search_path='))));
  });
+ await t.test('rolling migration preserves rows and enforces daily openings for teachers, admins and mixed batches',async()=>{
+  const snapshot=(await db.query('select * from bookings order by id')).rows;
+  await db.exec(read('../database/rolling-booking-window.sql'));
+  assert.deepEqual((await db.query('select * from bookings order by id')).rows,snapshot);
+  const schoolDay=day=>db.exec(`create or replace function ipad_date_rules.school_today() returns date language sql stable security invoker set search_path='' as $$select date '${day}'$$`);
+  const limit=async()=> (await db.query('select ipad_date_rules.last_booking_date()::text as day')).rows[0].day;
+  await schoolDay('2026-12-17');assert.equal(await limit(),'2026-12-31');
+  await insert(db,users.teacher);
+  for(const user of [users.teacher,users.admin])await assert.rejects(()=>insert(db,user,{date:'2027-01-01'}),/暫未開放/);
+  await schoolDay('2026-12-18');assert.equal(await limit(),'2027-01-01');
+  for(const user of [users.teacher,users.admin]){
+   await insert(db,user,{date:'2027-01-01'});
+   await assert.rejects(()=>insert(db,user,{date:'2027-01-02'}),/暫未開放/);
+  }
+  const existing=await insert(db,undefined,{date:'2027-01-02'});
+  await assert.rejects(()=>as(db,users.teacher,'update bookings set quantity=11 where id=$1',[existing]),/暫未開放/);
+  await as(db,users.teacher,'update bookings set quantity=9 where id=$1',[existing]);
+  const beforeBatch=(await db.query('select count(*)::int n from bookings')).rows[0].n;
+  await assert.rejects(()=>as(db,users.teacher,"insert into bookings(date,lesson,teacher_name,device_type,quantity,room,subject,class,user_email) values('2027-01-01',1,'Teacher','iPad',1,'Hall','Math','1A','teacher@example.invalid'),('2027-01-02',2,'Teacher','iPad',1,'Hall','Math','1A','teacher@example.invalid')"),/暫未開放/);
+  assert.equal((await db.query('select count(*)::int n from bookings')).rows[0].n,beforeBatch);
+  await schoolDay('2026-12-19');assert.equal(await limit(),'2027-01-02');
+  await insert(db,users.teacher,{date:'2027-01-02'});
+  await as(db,users.teacher,'update bookings set quantity=11 where id=$1',[existing]);
+  await schoolDay('2027-02-15');assert.equal(await limit(),'2027-03-01');
+  await insert(db,users.teacher,{date:'2027-03-01'});
+  await assert.rejects(()=>insert(db,users.teacher,{date:'2027-03-02'}),/暫未開放/);
+ });
  await db.close();
 });

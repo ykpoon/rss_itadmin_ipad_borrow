@@ -93,11 +93,25 @@ test('admin cannot manually pick up a waiting reservation without sufficient sto
  await assert.rejects(()=>h.api.setStatus('wait','borrowed'),/庫存不足/);assert.equal(h.writes.length,0);
 });
 
-test('cutoff accepts Dec31, rejects Jan1 and rejects mixed-date batch before writes',async()=>{
+function fixClock(h,instant){h.context.Date=class extends Date{constructor(...args){super(...(args.length?args:[instant]))}}}
+test('14-day limit opens on the Hong Kong date, keeps December open and rejects an early batch atomically',async()=>{
  const h=harness();h.db.resources[0].total_qty=150;
+ fixClock(h,'2026-12-17T15:59:59Z');
  await h.api.submitEntries([entry({date:'2026-12-31'})]);assert.equal(h.writes.length,1);
- for(const entries of [[entry({date:'2027-01-01'})],[entry({lesson:4}),entry({date:'2027-01-01'})]])await assert.rejects(()=>h.api.submitEntries(entries),/暫未開放/);
+ for(const entries of [[entry({date:'2027-01-01'})],[entry({date:'2026-12-31',lesson:4}),entry({date:'2027-01-01'})]])await assert.rejects(()=>h.api.submitEntries(entries),/暫未開放/);
  assert.equal(h.writes.length,1);
+ fixClock(h,'2026-12-17T16:00:00Z');
+ assert.equal(h.context.bookingDateRules.maxDate,'2027-01-01');
+ await assert.rejects(()=>h.api.submitEntries([entry({date:'2027-01-01'}),entry({date:'2027-01-02'})]),/暫未開放/);
+ assert.equal(h.writes.length,1);
+ await h.api.submitEntries([entry({date:'2027-01-01'})]);
+ fixClock(h,'2026-12-18T16:00:00Z');h.state.role='admin';
+ await h.api.submitEntries([entry({date:'2027-01-02'})]);
+ await assert.rejects(()=>h.api.submitEntries([entry({date:'2027-01-03'})]),/暫未開放/);
+ assert.equal(h.writes.length,3);
+ fixClock(h,'2027-02-15T04:00:00Z');
+ assert.equal(h.context.bookingDateRules.maxDate,'2027-03-01');
+ assert.equal(h.context.bookingDateRules.openingDate('2027-03-01'),'2027-02-15');
 });
 test('teacher cancellation checked before RPC; admin may handle same-day and past',async()=>{
  const tomorrow=new Date(today()+'T12:00:00Z');tomorrow.setUTCDate(tomorrow.getUTCDate()+1);

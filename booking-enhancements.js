@@ -51,31 +51,39 @@
    if(seen.has(identity(e)))throw Error('清單包含重複日期及課節。');seen.add(identity(e));
   }
   const key='ipad-booking-request:'+a.user.id+':'+JSON.stringify(normalized);
-  let ids=requestCache.get(key);try{ids=ids||JSON.parse(sessionStorage.getItem(key)||'null')}catch(_){}
-  if(!Array.isArray(ids)||ids.length!==normalized.length)ids=normalized.map(()=>crypto.randomUUID());
-  requestCache.set(key,ids);try{sessionStorage.setItem(key,JSON.stringify(ids))}catch(_){}
+  let request=requestCache.get(key);try{request=request||JSON.parse(sessionStorage.getItem(key)||'null')}catch(_){}
+  // A primary ID is always used, even when the whole quantity is waitlisted.
+  // Keeping the old IDs also lets a retry recognize a pre-update submission.
+  if(Array.isArray(request)&&request.length===normalized.length)request={ids:request.map(id=>[id,crypto.randomUUID()]),planned:normalized.map((e,i)=>({...e,id:request[i]}))};
+  if(!Array.isArray(request?.ids)||request.ids.length!==normalized.length)request={ids:normalized.map(()=>[crypto.randomUUID(),crypto.randomUUID()])};
+  const save=()=>{requestCache.set(key,request);try{sessionStorage.setItem(key,JSON.stringify(request))}catch(_){}};
   const finish=()=>{requestCache.delete(key);try{sessionStorage.removeItem(key)}catch(_){}};
   const first=normalized[0].date,last=normalized.at(-1).date,existing=await readRange(first,last);
-  const committed=existing.filter(b=>ids.includes(b.id));
-  if(committed.length){
-   if(committed.length!==normalized.length||!ids.every((id,i)=>{const b=committed.find(x=>x.id===id);return b&&email(b.user_email)===email(a.user.email)&&receiptMatches(b,normalized[i])}))throw Error('發現部分已提交或已變更記錄，請先到總表核對，沒有再次新增。');
-   finish();return ids.map(id=>committed.find(b=>b.id===id));
+  const ids=new Set(request.ids.flat()),committed=new Map(existing.filter(b=>ids.has(b.id)).map(b=>[b.id,b]));
+  if(committed.size){
+   const planned=request.planned;
+   if(!planned||committed.size!==planned.length||!planned.every(e=>{const b=committed.get(e.id);return b&&email(b.user_email)===email(a.user.email)&&receiptMatches(b,e)}))throw Error('發現部分已提交或已變更記錄，請先到總表核對，沒有再次新增。');
+   finish();return planned.map(e=>committed.get(e.id));
   }
   const [{data:resources,error:re},{data:adjusts,error:de}]=await Promise.all([
    _supabase.from('resources').select('name,total_qty'),_supabase.from('daily_adjustments').select('*').gte('date',first).lte('date',last)
   ]);if(re||de)throw re||de;
   const candidates=[];
   for(let i=0;i<normalized.length;i++){
-   const e=normalized[i],slot=existing.filter(b=>b.date===e.date&&Number(b.lesson)===e.lesson&&b.device_type===e.device_type);
+   const e=normalized[i],slot=[...existing,...candidates].filter(b=>b.date===e.date&&Number(b.lesson)===e.lesson&&b.device_type===e.device_type);
    if(slot.some(b=>b.teacher_name===e.teacher_name&&b.class===e.class&&['pending','borrowed','waiting'].includes(b.status)))throw Error(`${window.schoolDates.format(e.date)} 第 ${e.lesson} 節已有相同老師、班別及設備的預約，整批未有新增。`);
    const resource=resources.find(r=>r.name===e.device_type);if(!resource)throw Error('設備種類不存在。');
    const stock=adjusts.find(d=>d.date===e.date&&d.device_type===e.device_type)?.available_qty??resource.total_qty;
-   const used=slot.filter(b=>!['waiting','returned'].includes(b.status)).reduce((s,b)=>s+Number(b.quantity),0);
-   const status=used+e.quantity>stock?'waiting':'pending';
-   candidates.push({...e,id:ids[i],status,user_email:a.user.email,remarks:(status==='waiting'?'[候補] ':'')+e.remarks});
+   // Earlier waiters keep first claim on any spare devices in this slot.
+   const claimed=slot.filter(b=>b.status!=='returned').reduce((s,b)=>s+Number(b.quantity),0);
+   const confirmed=Math.min(e.quantity,Math.max(0,Number(stock)-claimed)),waiting=e.quantity-confirmed;
+   const add=(id,status,quantity)=>candidates.push({...e,id,status,quantity,user_email:a.user.email,remarks:(status==='waiting'?'[候補] ':'')+e.remarks});
+   if(confirmed>0)add(request.ids[i][0],'pending',confirmed);
+   if(waiting>0)add(request.ids[i][confirmed>0?1:0],'waiting',waiting);
   }
   // One bulk INSERT request. Stable primary keys let a response-lost retry find its own rows.
   // The existing API has no server-side slot lock; other tabs/users may still race preflight.
+  request.planned=candidates;save();
   const {data,error}=await _supabase.from('bookings').insert(candidates).select('*');
   if(error)throw error;finish();return data;
  }
@@ -118,14 +126,16 @@
  }
  async function submitUI(selections,isBatch){
   if(submitting)return;if(!el('bookingForm').reportValidity())return;
-  if(!confirm(`確認提交 ${selections.length} 筆借用？庫存不足的預約會列為候補。`))return;
+  if(!confirm(`確認提交 ${selections.length} 個借用時段？如庫存不足，會先確認可借數量，其餘排候補。`))return;
   submitting=true;[el('submitBtn'),el('batchSubmit')].forEach(b=>b.disabled=true);
   try{
    const common={teacher_name:el('teacherSelect').value,device_type:el('deviceType').value,quantity:Number(el('quantity').value),class:el('className').value,subject:el('subject').value,room:el('room').value,usage_type:el('usageType').value,remarks:el('remarks').value};
-   const rows=await submitEntries(selections.map(s=>({...common,...s}))),waiting=rows.filter(b=>b.status==='waiting').length;
-   const message=`已建立 ${rows.length} 筆借用（待取機 ${rows.length-waiting}，候補 ${waiting}）。`;
+   const rows=await submitEntries(selections.map(s=>({...common,...s})));
+   const count=status=>rows.filter(b=>b.status===status).reduce((n,b)=>n+Number(b.quantity),0);
+   const confirmed=count('pending'),waiting=count('waiting');
+   const message=`已處理 ${selections.length} 個借用時段：${[confirmed?`待取機 ${confirmed} 部`:'',waiting?`候補 ${waiting} 部`:''].filter(Boolean).join('，')||'請到「我的借用總表」查看最新狀態'}。`;
    el('batchResult').textContent=message;
-   if(window.bookingFeedback)window.bookingFeedback.show({title:waiting===rows.length?'已加入候補':'借用登記成功！',message,kind:waiting===rows.length?'waiting':'success'});else alert(message);
+   if(window.bookingFeedback)window.bookingFeedback.show({title:waiting&&!confirmed?'已加入候補':waiting?'部分借用成功，其餘候補':'借用登記成功！',message,kind:waiting&&!confirmed?'waiting':'success'});else alert(message);
    if(isBatch){previewBatch.splice(0);previewRenderBatch()}
    await fetchAndRender();await fetchMonthlyData();window.previewRefreshPersonal?.();
   }catch(e){const message='提交未完成確認：'+e.message+'。如是網絡中斷，請保留相同內容再試；亦可先到總表核對。';el('batchResult').textContent=message;alert(message)}
@@ -174,18 +184,17 @@
    try{const {a,b}=await checkedBooking(id);if(!a.isAdmin)throw Error('只有管理員可標記欠取。');if(!['pending','borrowed'].includes(b.status))throw Error('此預約已處理，不能再次標記欠取。');return await original(id,b.teacher_name)}catch(e){alert(e.message)}
   };
  }
- window.previewHideReminder=()=>el('previewReminder')?.classList.add('hidden');
- window.previewShowReminder=async user=>{
-  if(!user?.email||!el('previewReminder'))return;
-  try{
-   const data=await loadMine();if(typeof currentUser==='undefined'||currentUser?.id!==user.id)return;
+ let reminderData=null;
+ window.previewHideReminder=()=>{reminderData=null;el('previewReminder')?.classList.add('hidden')};
+ function renderReminder(data){
    // Use the school day even when a teacher's device is in another timezone.
-   const monday=new Date(window.bookingDateRules.today()+'T12:00:00Z');monday.setUTCDate(monday.getUTCDate()-((monday.getUTCDay()+6)%7));
+   const today=window.bookingDateRules.today();
+   const monday=new Date(today+'T12:00:00Z');monday.setUTCDate(monday.getUTCDate()-((monday.getUTCDay()+6)%7));
    const sunday=new Date(monday);sunday.setUTCDate(sunday.getUTCDate()+6);
    const start=monday.toISOString().slice(0,10),end=sunday.toISOString().slice(0,10);
    el('previewReminderRange').textContent=`${window.schoolDates.format(start)} 至 ${window.schoolDates.format(end)}`;const items=el('previewReminderItems');items.replaceChildren();
    const relevant=data.filter(b=>b.date>=start&&b.date<=end).sort((a,b)=>a.date.localeCompare(b.date)||Number(a.lesson)-Number(b.lesson)||String(a.id).localeCompare(String(b.id)));
-   const missed=relevant.filter(b=>b.status==='missed'),other=relevant.filter(b=>b.status!=='missed');
+   const missed=relevant.filter(b=>b.status==='missed'),other=relevant.filter(b=>b.status!=='missed'&&b.date>=today);
    const node=(tag,cls,text)=>{const n=document.createElement(tag);n.className=cls;if(text!==undefined)n.textContent=text;return n};
    const row=(b,isMissed)=>{
     const r=node('div',isMissed?'reminder-missed-row':'reminder-booking'),details=node('div','reminder-details');
@@ -208,12 +217,19 @@
     const section=node('section','reminder-other');section.append(node('h3','reminder-section-title',missed.length?'本週其他借用':'本週設備借用'));
     for(const b of other)section.append(row(b,false));items.append(section);
    }
-   if(!relevant.length)items.textContent='本週暫無借用記錄。';
+   if(!missed.length&&!other.length)items.textContent='本週餘下日子暫無借用記錄。';
    if(missed.length)items.append(node('p','reminder-note','如無法如期取機，請於借用日前取消預約。如欠取記錄有誤，請聯絡管理員核對。'));
+ }
+ window.previewShowReminder=async user=>{
+  if(!user?.email||!el('previewReminder'))return;
+  try{
+   const data=await loadMine();if(typeof currentUser==='undefined'||currentUser?.id!==user.id)return;
+   reminderData=data;renderReminder(data);
    el('previewReminder').classList.remove('hidden');el('previewReminder').querySelector('button').focus();
   }catch(e){console.warn('借用提醒未能載入：',e.message)}
  };
  document.addEventListener('DOMContentLoaded',()=>{
   document.addEventListener('keydown',e=>{if(e.key==='Escape')window.previewHideReminder()});
+  window.addEventListener('ipad:school-day-changed',()=>{if(reminderData)renderReminder(reminderData)});
  });
 })();

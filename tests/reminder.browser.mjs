@@ -43,6 +43,10 @@ async function emit(event, user) {
 }
 const pass = label => console.log('PASS', label);
 try {
+  await page.addInitScript(()=>reminderTestDB.bookings.push(
+    {...reminderTestDB.bookings[0],id:'yesterday-waiting',date:'2026-11-02',status:'waiting',quantity:74},
+    {...reminderTestDB.bookings[0],id:'yesterday-pending',date:'2026-11-02',quantity:75}
+  ));
   await page.goto(origin);
   // Tailwind's network script is isolated; the visibility class is all this test needs.
   await page.addStyleTag({ content: '.hidden{display:none!important}' });
@@ -54,7 +58,7 @@ try {
   await visible();
   assert.match(await items.innerText(), /iPad × 12/);
   assert.match(await items.innerText(), /Mobile × 5/);
-  assert.doesNotMatch(await items.innerText(), /iPad × 8|iPad × 99/);
+  assert.doesNotMatch(await items.innerText(), /iPad × 8|iPad × 99|iPad × 74|iPad × 75/);
   assert.match(await page.locator('#previewReminderRange').innerText(), /02\/11\/2026 至 08\/11\/2026/);
   assert.equal(await page.evaluate(() => sessionStorage.getItem('ipad-login-reminder')), null);
   pass('Existing signed-in session shows this week’s own and alias bookings without a login flag');
@@ -68,6 +72,14 @@ try {
   assert.doesNotMatch(await missed.innerText(), /OLD/);
   assert.equal(await page.locator('.reminder-other .reminder-booking').count(), 2);
   pass('Missed dates/lessons and all-history total include aliases and delegated records, independent of resettable counter');
+  await page.clock.setFixedTime(new Date('2026-11-03T16:00:00Z'));
+  await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
+  assert.doesNotMatch(await items.innerText(), /iPad × 12/);
+  assert.match(await items.innerText(), /Mobile × 5/);
+  assert.equal(await page.locator('#reminderMissedWeekCount').innerText(), '本週 2 次');
+  await page.clock.setFixedTime(new Date('2026-11-03T04:00:00Z'));
+  await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
+  pass('Yesterday’s bookings are hidden and an open reminder refreshes at Hong Kong midnight');
 
   for (const width of [320, 390, 1024]) {
     await page.setViewportSize({ width, height: width === 1024 ? 1366 : 600 });
@@ -115,7 +127,7 @@ try {
   });
   await emit('SIGNED_IN', 'a'); await visible();
   assert.equal(await page.locator('.reminder-alert').count(), 0);
-  assert.equal(await items.innerText(), '本週暫無借用記錄。');
+  assert.equal(await items.innerText(), '本週餘下日子暫無借用記錄。');
   pass('Past missed records alone do not create a current-week alert');
 
   await emit('SIGNED_OUT', null);
@@ -135,9 +147,26 @@ try {
   await emit('SIGNED_OUT', null);
   await page.evaluate(() => { reminderTestDB.bookings = []; });
   await emit('SIGNED_IN', 'a'); await visible();
-  assert.equal(await items.innerText(), '本週暫無借用記錄。');
+  assert.equal(await items.innerText(), '本週餘下日子暫無借用記錄。');
   assert.deepEqual(errors, []);
   pass('Empty week shows the existing message; no browser or initialization errors');
+
+  await page.evaluate(()=>{
+    previewHideReminder();
+    reminderTestDB.daily_adjustments.push({date:'2026-11-03',device_type:'iPad',available_qty:26});
+    return fetchAndRender();
+  });
+  await page.waitForFunction(()=>document.getElementById('teacherSelect').value==='Teacher A');
+  for (const [field,value] of [['className','5C'],['subject','中文'],['room','5C'],['usageType','basic']]) await page.selectOption('#'+field,value);
+  await page.fill('#quantity','30');
+  page.once('dialog',dialog=>dialog.accept());
+  await page.locator('#submitBtn').click();
+  await page.waitForFunction(()=>document.getElementById('batchResult').textContent.includes('候補 4 部'));
+  assert.match(await page.locator('#batchResult').innerText(),/待取機 26 部，候補 4 部/);
+  const writes=await page.evaluate(()=>reminderTestInserts);
+  assert.equal(writes.length,1);assert.deepEqual(writes[0].map(b=>[b.status,b.quantity]),[['pending',26],['waiting',4]]);
+  assert.deepEqual(errors, []);
+  pass('Submitting 30 on the booking form with 26 available confirms 26 and waitlists 4 in one write');
 
   const remote = await browser.newPage({ timezoneId: 'America/Los_Angeles' });
   await remote.addInitScript({ path: path.join(root, 'tests/fixtures/reminder-browser.js') });

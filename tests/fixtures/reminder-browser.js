@@ -28,10 +28,12 @@
   };
   window.reminderTestDB = db;
   window.reminderTestReads = 0;
+  window.reminderTestInserts = [];
   function from(table) {
-    let filters = [], offset = 0, end = Infinity, dateFilter = '';
+    let filters = [], offset = 0, end = Infinity, dateFilter = '', inserted;
     const q = {
       select() { return q; }, order() { return q; },
+      insert(rows) { inserted = rows; return q; },
       eq(k, v) { if(k === 'date') dateFilter = v; filters.push(b => b[k] === v); return q; },
       ilike(k, v) { filters.push(b => String(b[k]).toLowerCase() === v.toLowerCase()); return q; },
       gte(k, v) { filters.push(b => b[k] >= v); return q; },
@@ -40,7 +42,8 @@
       range(a, b) { offset = a; end = b; return q; },
       then(resolve, reject) {
         window.reminderTestReads++;
-        const result = { data: structuredClone(db[table].filter(b => filters.every(f => f(b))).slice(offset, end + 1)), error: null };
+        if (inserted) { db[table].push(...structuredClone(inserted)); reminderTestInserts.push(structuredClone(inserted)); }
+        const result = { data: structuredClone(inserted || db[table].filter(b => filters.every(f => f(b))).slice(offset, end + 1)), error: null };
         if (table === 'bookings' && window.listTestFailBookings) result.error = { message: '測試載入失敗' };
         const delay = table === 'bookings' ? window.listTestDelayByDate?.[dateFilter] || 0 : 0;
         return (delay ? new Promise(done => setTimeout(() => done(result), delay)) : Promise.resolve(result)).then(resolve, reject);

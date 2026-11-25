@@ -35,23 +35,33 @@ test('formal batches allow real quantities on production and contain no test tag
  assert.equal(rows.length,2);assert.ok(rows.every(b=>b.quantity===30&&b.status==='pending'&&b.remarks==='原有備註'));
  assert.equal(h.writes.length,1);assert.ok(rows.every(b=>b.id));
 });
-test('existing live reservations are counted; insufficient quantity becomes waiting',async()=>{
- const h=harness({bookings:[{...entry({teacher_name:'Teacher B',class:'2A',quantity:40}),id:'real',status:'pending'}]});h.db.resources[0].total_qty=50;
- const rows=await h.api.submitEntries([entry()]);assert.equal(rows[0].status,'waiting');assert.match(rows[0].remarks,/^\[候補\]/);assert.equal(rows[0].quantity,30);
- assert.equal(h.db.bookings[0].quantity,40);
+test('30 requested with 26 available writes 26 pending and 4 waiting together',async()=>{
+ const h=harness({bookings:[{...entry({teacher_name:'Teacher B',class:'2A',quantity:24}),id:'real',status:'pending'}]});h.db.resources[0].total_qty=50;
+ const rows=await h.api.submitEntries([entry()]);
+ assert.deepEqual(Array.from(rows,b=>[b.status,b.quantity,b.remarks]),[['pending',26,'原有備註'],['waiting',4,'[候補] 原有備註']]);
+ assert.notEqual(rows[0].id,rows[1].id);assert.equal(h.writes.length,1);assert.equal(h.db.bookings[0].quantity,24);
+ for(const row of rows)assert.equal(row.usage_type,'basic');
+ await assert.rejects(()=>h.api.submitEntries([entry()]),/已有相同/);
 });
-test('daily adjustments apply per date and returned/waiting rows do not consume stock',async()=>{
- const h=harness({bookings:[{...entry({teacher_name:'Teacher B',quantity:50}),id:'old',status:'returned'}]});h.db.resources[0].total_qty=150;h.db.daily_adjustments.push({date:today(),device_type:'iPad',available_qty:20});
- assert.equal((await h.api.submitEntries([entry()]))[0].status,'waiting');
+test('a batch honors per-date stock, zero availability and earlier waiters',async()=>{
+ const h=harness({bookings:[{...entry({teacher_name:'Teacher B',quantity:50}),id:'old',status:'returned'},{...entry({teacher_name:'Teacher B',quantity:3}),id:'queued',status:'waiting'},{...entry({teacher_name:'Teacher B',lesson:3,quantity:20}),id:'full',status:'pending'}]});h.db.resources[0].total_qty=150;h.db.daily_adjustments.push({date:today(),device_type:'iPad',available_qty:20});
+ const rows=await h.api.submitEntries([entry(),entry({lesson:3}),entry({lesson:4,quantity:15})]);
+ assert.deepEqual(Array.from(rows,b=>[b.lesson,b.status,b.quantity]),[[2,'pending',17],[2,'waiting',13],[3,'waiting',30],[4,'pending',15]]);assert.equal(h.writes.length,1);
+});
+test('different classes in the same batch do not over-allocate the same slot',async()=>{
+ const h=harness({role:'admin'});h.db.resources[0].total_qty=50;
+ const rows=await h.api.submitEntries([entry(),entry({class:'2B'})]);
+ assert.deepEqual(Array.from(rows,b=>[b.class,b.status,b.quantity]),[['1A','pending',30],['2B','pending',20],['2B','waiting',10]]);
 });
 test('lost response retry reuses primary keys and does not duplicate a committed batch',async()=>{
- const h=harness();h.db.resources[0].total_qty=100;h.state.dropResponse=true;const items=[entry(),entry({lesson:4})];
+ const h=harness();h.db.resources[0].total_qty=26;h.state.dropResponse=true;const items=[entry(),entry({lesson:4})];
  await assert.rejects(()=>h.api.submitEntries(items),/response lost/);
- const retry=await h.api.submitEntries(items);assert.equal(retry.length,2);assert.equal(h.db.bookings.length,2);assert.equal(h.writes.length,1);
- assert.equal(retry[0].id,h.db.bookings[0].id);
+ h.db.resources[0].total_qty=150;
+ const retry=await h.api.submitEntries(items);assert.equal(h.db.bookings.length,4);assert.equal(h.writes.length,1);
+ assert.deepEqual(Array.from(retry,b=>[b.id,b.status,b.quantity]),h.db.bookings.map(b=>[b.id,b.status,b.quantity]));
 });
 test('partial receipt after a lost response stops retry rather than adding more rows',async()=>{
- const h=harness();h.state.dropResponse=true;const items=[entry(),entry({lesson:4})];
+ const h=harness();h.db.resources[0].total_qty=26;h.state.dropResponse=true;const items=[entry()];
  await assert.rejects(()=>h.api.submitEntries(items));h.db.bookings.pop();
  await assert.rejects(()=>h.api.submitEntries(items),/部分已提交/);assert.equal(h.writes.length,1);
 });
